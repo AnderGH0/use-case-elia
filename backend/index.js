@@ -163,23 +163,22 @@ app.put("/accept-request/:requestId", authenticateToken, async (req, res) => {
     } */
 });
 
-//POST      /register                                |   Créer un compte    
-//POST      /login                                   |   Se connecter
-//GET       /self-info                               |   Avoir ses infos à soi
-//POST      /request                                 |   Créer une requête de switch
+//POST      /register                                |   Créer un compte -- 
+//POST      /login                                   |   Se connecter --
+//GET       /self-info                               |   Avoir ses infos à soi --
+//POST      /request                                 |   Créer une requête de switch 
 //PUT       /request/:requestID                      |   Accepter une requête de switch
 //PUT       /decline-request                         |   Envoyer une notification à l'user si la requête est refusé, efface la requete des notifications du target
 //DELETE    /delete-request                          |   Efface la requete par l'user ou accepté/refusé par l'admin
-//GET       /user/:id                                |   Avoir les info sur le user avec l'id, envoyer les requêtes
-//GET       /request/:requestID                      |   Avoir les info sur la requete (notifications/page admin)
+//GET       /user/:id                                |   Avoir les info sur le user avec l'id, envoyer les requêtes --
+//GET       /request/:requestID                      |   Avoir les info sur la requete (notifications/page admin) --
 //GET       /requests-by-user/:userID                |   avoir les requêtes par user (multiple notifications)
-//GET       /schedule-user/:userId                   |   Avoir les semaines de travail par user          
+//GET       /schedule-user/:userId                   |   Avoir les semaines de travail par user   
 //GET       /schedule-zone/:zoneID                   |   recevoir l'horaire de la zone (par semaines)
 //PUT       /switch-shifts                           |   change dans les weeks la personne qui va travailler un/des jour(s)
 //GET       /admin/get-all-requests            admin |   Recevoir l'historique des requêtes
 //POST      /admin/create-calendar             admin |   créer calendrier avec X users aléatoires
 //GET       /admin/get-all-users               admin |   admin page; liste des users avec des info/statistiques (à voir)
-//POST      /admin/review-request              admin |   admin doit accpeter le switch pour que le calendrier change
 
 app.listen(8000, () => {
     console.log("Server is running on port 8000");

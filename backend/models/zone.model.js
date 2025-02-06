@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-const monthModel = require('./planning.model');
 const Schema = mongoose.Schema;
 
 const zoneSchema = new Schema({
