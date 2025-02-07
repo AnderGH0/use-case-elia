@@ -8,7 +8,7 @@ mongoose.connect(process.env.MONGO_ATLAS_STRING);
 const User = require("./models/user.model");
 const Shift = require("./models/week.model");
 const RequestLog = require("./models/requestLog.model");
-const Zone = require("./models/zone.model");
+const ServiceCenter = require("./models/serviceCenter.model");
 const Request = require("./models/request.model");
 const Month = require("./models/planning.model");
 
@@ -40,25 +40,31 @@ app.post("/register", async (req, res) => {
     if(!firstName || !lastName || !phone || !zone || !password){
         return res.status(400).json({message: "User information is missing"});
     }
-    // Check if already registered
-    const isUser = await User.findOne({phone});
-    if(isUser){
-        return res.status(400).json({message: "User already exists"});
+    try {
+        // Check if already registered
+        const isUser = await User.findOne({phone});
+        if(isUser){
+            return res.status(400).json({message: "User already exists"});
+        }
+        // Create User
+        const user = new User({
+            firstName,
+            lastName,
+            phone,
+            zone,
+            password
+        });
+        // give an abbreviation
+        user.abreveation = firstName.charAt(0).toUpperCase() + lastName.charAt(0).toUpperCase() + lastName.charAt(1).toUpperCase();
+        //give token
+        const accessToken = jwt.sign({user}, process.env.ACCESS_TOKEN_SECRET, {expiresIn: "10h"});
+        user.token = accessToken;
+        await user.save();
+
+        return res.status(201).json({error:false, message: "User created successfully", user});
+    } catch (error) {
+        return res.status(400).json({error: true, message: "Error creating user", error});
     }
-    // Create User
-    const user = new User({
-        firstName,
-        lastName,
-        phone,
-        zone,
-        password
-    });
-    user.abreveation = firstName.charAt(0).toUpperCase() + lastName.charAt(0).toUpperCase() + lastName.charAt(1).toUpperCase();
-    const accessToken = jwt.sign({user}, process.env.ACCESS_TOKEN_SECRET, {expiresIn: "10h"});
-    user.token = accessToken;
-    await user.save();
-    res.status(201).json({error:false, message: "User created successfully", user});
-    
 
 });
 
@@ -70,20 +76,24 @@ app.post("/login", async (req, res) => {
         const missingField = !phone ? "phone" : "password";
         return res.status(400).json({message: `${missingField} is required`});
     }
-    //search the user
-    const userInfo = await User.findOne({phone});
-    if(!userInfo){ //user not found
-        return res.status(400).json({message: "User not found"});
+    try {
+        //search the user
+        const userInfo = await User.findOne({phone});
+        if(!userInfo){ //user not found
+            return res.status(400).json({message: "User not found"});
+        }
+        if(userInfo.password !== password){ //wrong password
+            return res.status(400).json({message: "Wrong password"});
+        } 
+        if(userInfo.phone !== phone){ //wrong phone
+            return res.status(400).json({message: "Wrong phone"});
+        }
+        const user = {user: userInfo}; 
+        const accessToken = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {expiresIn: "10h"});
+        return res.json({error: false, message: "User logged in successfully", user, accessToken});
+    } catch (error) {
+        return res.status(400).json({error: true, message: "Error logging in", error});
     }
-    if(userInfo.password !== password){ //wrong passw   ord
-        return res.status(400).json({message: "Wrong password"});
-    } 
-    if(userInfo.phone !== phone){ //wrong phone
-        return res.status(400).json({message: "Wrong phone"});
-    }
-    const user = {user: userInfo}; 
-    const accessToken = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {expiresIn: "10h"});
-    return res.json({error: false, message: "User logged in successfully", user, accessToken});
 });
 
 // // --------------------------------- USER ROUTES ---------------------------------
@@ -102,40 +112,24 @@ app.post("/login", async (req, res) => {
 // })
 
 
-// //--------------------------------- SWITCH REQUEST ROUTES ----------------------------------------
+// //--------------------------------- REQUEST ROUTES ----------------------------------------
 
-// // create request  ---  modifier
-// app.post("/create-request", authenticateToken, async (req, res) => {
-//     const {zone, targetUserPhone, isUrgent, startDate, endDate, userPhone} = req.body;
-//     if(!zone || !startDate || !endDate || !userPhone){
-//         return res.status(400).json({message: "Request information is missing"});
-//     }
-//     try {
-//         const userInfo = await User.findOne({phone: userPhone});
-//         if(!userInfo){
-//             return res.status(400).json({message: "User not found"});
-//         }
-//         const targetUserInfo = await User.findOne({phone: targetUserPhone});
-//         if(!targetUserInfo){
-//             return res.status(400).json({message: "Target User not found"});
-//         }
-//         const request = new Request({
-//             userPhone,
-//             zone,
-//             isUrgent: isUrgent?true:false,
-//             startDate,
-//             endDate,
-//         });
-//         await request.save();
-//         return res.json({error: false, message: "Request created successfully", request: { user:userInfo, targetUser: targetUserInfo, zone, startDate, endDate, isUrgent, userShifts: userInfo.shifts}});  
-//     } catch (error) {
-//         return res.status(400).json({error: true, message: "Error creating request", error});
-//     } 
-// });
+// create request  ---  modifier
+app.post("/create-request", authenticateToken, async (req, res) => {
+    const {zone, targetUserPhone, isUrgent, startDate, endDate, userPhone} = req.body;
+    if(!zone || !startDate || !endDate || !userPhone){
+        return res.status(400).json({message: "Request information is missing"});
+    }
+    try {
+
+    } catch (error) {
+        return res.status(400).json({error: true, message: "Error creating request", error});
+    } 
+});
 
 // accept request --- modifier
 // app.put("/accept-request/:requestId", authenticateToken, async (req, res) => {
-   
+
 // });
 
 //POST      /register                                |   Créer un compte ---
@@ -147,13 +141,13 @@ app.post("/login", async (req, res) => {
 //DELETE    /delete-request                          |   Efface la requete par l'user ou accepté/refusé par l'admin
 //GET       /user/:id                                |   Avoir les info sur le user avec l'id, envoyer les requêtes --
 //GET       /request/:requestID                      |   Avoir les info sur la requete (notifications/page admin) --
-//GET       /requests-by-user/:userID                |   avoir les requêtes par user (multiple notifications) -- 
+//GET       /requests-by-user/:userID                |   Avoir les requêtes par user (multiple notifications) -- 
 //GET       /schedule-user/:userId                   |   Avoir les semaines de travail par user --
-//GET       /schedule-zone/:zoneID                   |   recevoir l'horaire de la zone (par semaines) --
-//PUT       /switch-shifts                           |   change dans les weeks la personne qui va travailler un/des jour(s)
+//GET       /schedule-zone/:zoneID                   |   Recevoir l'horaire de la zone (par semaines) --
+//PUT       /switch-shifts                           |   Change dans les weeks la personne qui va travailler un/des jour(s)
 //GET       /admin/get-all-requests            admin |   Recevoir l'historique des requêtes -- 
-//POST      /admin/create-calendar             admin |   créer calendrier avec X users aléatoires
-//GET       /admin/get-all-users               admin |   admin page; liste des users avec des info/statistiques (à voir) -- 
+//POST      /admin/create-calendar             admin |   Créer calendrier avec X users aléatoires
+//GET       /admin/get-all-users               admin |   Admin page; liste des users avec des info/statistiques (à voir) -- 
 
 app.listen(8000, () => {
     console.log("Server is running on port 8000");
