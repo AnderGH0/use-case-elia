@@ -25,4 +25,5 @@ South-East
     Bressoux
     Villeroux
     Gembloux
+    Namur
 */
