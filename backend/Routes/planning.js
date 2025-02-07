@@ -16,6 +16,10 @@ const Month = require("../models/planning.model");
 
 module.exports = router;
 
+
+// req.body => "days" : ["2025-01-01"]
+// Date.toLocaleString()  =>  "20/12/2012, 03:00:00"
+
 // GET       /user/:userId                          Avoir les semaines de travail par user --
 // GET       /zone/:name                            Recevoir l'horaire de la zone (par semaines) --
 // PUT       /switch-shifts                         Change dans les weeks la personne qui va travailler un/des jour(s)
