@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 //MongoDB connection
 const mongoose = require("mongoose");  
 mongoose.connect(process.env.MONGO_ATLAS_STRING);

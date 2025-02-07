@@ -1,3 +1,6 @@
+//MongoDB connection
+const mongoose = require("mongoose");  
+mongoose.connect(process.env.MONGO_ATLAS_STRING);
 //express rotuer
 const express = require("express");
 const router = express.Router();
@@ -5,12 +8,12 @@ const router = express.Router();
 const jwt = require("jsonwebtoken");
 const {authenticateToken} = require("../utilities");
 //Models
-const User = require("./models/user.model");
-const Shift = require("./models/week.model");
-const RequestLog = require("./models/requestLog.model");
-const ServiceCenter = require("./models/serviceCenter.model");
-const Request = require("./models/request.model");
-const Month = require("./models/planning.model");
+const User = require("../models/user.model");
+const Shift = require("../models/week.model");
+const RequestLog = require("../models/requestLog.model");
+const ServiceCenter = require("../models/serviceCenter.model");
+const Request = require("../models/request.model");
+const Month = require("../models/planning.model");
 
 // router.get/post
 
