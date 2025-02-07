@@ -9,6 +9,7 @@ const ServiceCenter = require("../models/serviceCenter.model");
 
 // register
 router.post("/register", async (req, res) => {
+    
     const {firstName, lastName, phone, serviceCenter, password, isAdmin} = req.body;
     //Fields validation
     if(!firstName || !lastName || !phone || !serviceCenter || !password){
