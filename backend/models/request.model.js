@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const requestSchema = new Schema({
-    zone: { type: String, required : true},
+    serviceCenter: { type: String, required : true},
     userPhone : { type: Number, required: true },
     targetPhone : Number,
     days: { type: [Date], required: true },

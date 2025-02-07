@@ -4,20 +4,15 @@ const express = require("express");
 const router = express.Router();
 //jwt
 const jwt = require("jsonwebtoken");
-const {authenticateToken} = require("../utilities");
 //Models
 const User = require("./models/user.model");
-const Shift = require("./models/week.model");
-const RequestLog = require("./models/requestLog.model");
 const ServiceCenter = require("./models/serviceCenter.model");
-const Request = require("./models/request.model");
-const Month = require("./models/planning.model");
 
 // register
 router.post("/register", async (req, res) => {
-    const {firstName, lastName, phone, zone, password} = req.body;
+    const {firstName, lastName, phone, serviceCenter, password} = req.body;
     //Fields validation
-    if(!firstName || !lastName || !phone || !zone || !password){
+    if(!firstName || !lastName || !phone || !serviceCenter || !password){
         return res.status(400).json({message: "User information is missing"});
     }
     try {
@@ -26,12 +21,16 @@ router.post("/register", async (req, res) => {
         if(isUser){
             return res.status(400).json({message: "User already exists"});
         }
+        const sc = await ServiceCenter.findOne({name: serviceCenter});
+        if(!sc){
+            return res.status(400).json({message: "Service Center does not exist"});
+        }
         // Create User
         const user = new User({
             firstName,
             lastName,
             phone,
-            zone,
+            serviceCenter,
             password
         });
         // give an abbreviation
@@ -40,7 +39,9 @@ router.post("/register", async (req, res) => {
         const accessToken = jwt.sign({user}, process.env.ACCESS_TOKEN_SECRET, {expiresIn: "10h"});
         user.token = accessToken;
         await user.save();
-
+        // add user to service center
+        sc.users.push(user);
+        await sc.save();
         return res.status(201).json({error:false, message: "User created successfully", user});
     } catch (error) {
         return res.status(400).json({error: true, message: "Error creating user", error});

@@ -7,7 +7,7 @@ const userSchema = new Schema({
     lastName : {type: String, required: true},
     abreveation : {type: String},
     phone : {type: Number, required: true},
-    zone : {type: String, required: true},
+    serviceCenter : {type: String, required: true},
     password : {type: String, required: true},
     workedDays : {type: Number, default: 0},
     isAdmin : {type: Boolean, default: false},
