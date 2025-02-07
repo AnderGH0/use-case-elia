@@ -1,13 +1,16 @@
-//MongoDB connection
+// MongoDB connection
 const mongoose = require("mongoose");  
 mongoose.connect(process.env.MONGO_ATLAS_STRING);
-//express rotuer
+
+// Express router
 const express = require("express");
 const router = express.Router();
-//jwt
+
+// jwt (si besoin d'authentification)
 const jwt = require("jsonwebtoken");
-const {authenticateToken} = require("../utilities");
-//Models
+const { authenticateToken } = require("../utilities");
+
+// Modèles
 const User = require("../models/user.model");
 const Shift = require("../models/week.model");
 const RequestLog = require("../models/requestLog.model");
@@ -15,24 +18,62 @@ const ServiceCenter = require("../models/serviceCenter.model");
 const Request = require("../models/request.model");
 const Month = require("../models/planning.model");
 
-// router.get/post
+// Route pour récupérer toutes les informations des utilisateurs
+router.get("/all/", authenticateToken, async (req, res) => {
 
+    try {
+      // On vérifie que l'utilisateur authentifié est bien administrateur.
+      // On suppose ici que le middleware 'authenticateToken' ajoute un objet 'user'
+      // dans la requête avec une propriété 'isAdmin'.
+      console.log(req.user)
+      if (!req.user.isAdmin) {
+        return res.status(403).json({ error: "Accès interdit : vous n'êtes pas administrateur." });
+      }
+     
+      // Récupérer tous les utilisateurs de la base de données et, si besoin, peupler des champs (exemple: "requests")
+      const users = await User.find({});
+  
+      // pour chaque utilisateur, retirer les informations sensibles (par exemple le mot de passe et le token)
+      const sanitizedUsers = users.map(user => {
+        const { password, token, ...userData } = user.toObject();
+        return userData;
+      });
+  
+      res.json(sanitizedUsers);
+    } catch (error) {
+      console.error("Erreur lors de la récupération des informations des utilisateurs :", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
 
-// //Get User Info : Profile --- modifier
-// app.get("/self-info", authenticateToken, async (req, res) => {
-//     const {user} = req.user;
+// Route pour récupérer les informations d'un utilisateur par son ID
+router.get("/:id", authenticateToken, async (req, res) => {
 
+  try {
+    // Récupérer l'ID de l'utilisateur depuis l'URL
+    const userId = req.params.id;
 
+    // Recherche de l'utilisateur dans la base de données en utilisant l'ID
+    const user = await User.findById(userId);
 
-//     const isUser = await User.findOne({phone: user.phone});
-//     if(!isUser){
-//         return res.status(400).json({message: "User not found"});
-//     }
-//     return res.json({error: false, user: isUser, "_id":isUser._id ,message: "User found"});
-// })
+    if (!user) {
+      return res.status(404).json({ error: "Utilisateur non trouvé" });
+    }
+
+    // Exclure les informations sensibles, par exemple le mot de passe
+    const { password, ...userData } = user.toObject();
+
+    res.json(userData);
+  } catch (error) {
+    console.error("Erreur lors de la récupération des informations de l'utilisateur :", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 
 
 module.exports = router;
+
 
 // GET       /self-info          Avoir ses infos à soi --
 // GET       /:id                Avoir les info sur le user avec l'id, envoyer les requêtes --
