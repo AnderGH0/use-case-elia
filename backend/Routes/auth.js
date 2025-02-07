@@ -31,7 +31,8 @@ router.post("/register", async (req, res) => {
             lastName,
             phone,
             serviceCenter,
-            password
+            password, 
+            isAdmin
         });
         // give an abbreviation
         user.abreveation = firstName.charAt(0).toUpperCase() + lastName.charAt(0).toUpperCase() + lastName.charAt(1).toUpperCase();
