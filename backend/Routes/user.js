@@ -16,17 +16,17 @@ const Month = require("./models/planning.model");
 
 
 // //Get User Info : Profile --- modifier
-// app.get("/self-info", authenticateToken, async (req, res) => {
-//     const {user} = req.user;
+app.get("/self-info", authenticateToken, async (req, res) => {
+    const {user} = req.user;
 
 
 
-//     const isUser = await User.findOne({phone: user.phone});
-//     if(!isUser){
-//         return res.status(400).json({message: "User not found"});
-//     }
-//     return res.json({error: false, user: isUser, "_id":isUser._id ,message: "User found"});
-// })
+    const isUser = await User.findOne({phone: user.phone});
+    if(!isUser){
+        return res.status(400).json({message: "User not found"});
+    }
+    return res.json({error: false, user: isUser, "_id":isUser._id ,message: "User found"});
+})
 
 
 module.exports = router;
