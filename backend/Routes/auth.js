@@ -9,7 +9,7 @@ const ServiceCenter = require("../models/serviceCenter.model");
 
 // register
 router.post("/register", async (req, res) => {
-    const {firstName, lastName, phone, serviceCenter, password} = req.body;
+    const {firstName, lastName, phone, serviceCenter, password, isAdmin} = req.body;
     //Fields validation
     if(!firstName || !lastName || !phone || !serviceCenter || !password){
         return res.status(400).json({message: "User information is missing"});
@@ -23,7 +23,7 @@ router.post("/register", async (req, res) => {
         const sc = await ServiceCenter.findOne({name: serviceCenter});
         console.log(isUser)
         if(!sc){
-            return res.status(400).json({message: "Service Center does not exist"});
+            return res.status(404).json({message: "Service Center does not exist"});
         }
         // Create User
         const user = new User({
@@ -31,7 +31,8 @@ router.post("/register", async (req, res) => {
             lastName,
             phone,
             serviceCenter,
-            password
+            password,
+            isAdmin
         });
         // give an abbreviation
         user.abreveation = firstName.charAt(0).toUpperCase() + lastName.charAt(0).toUpperCase() + lastName.charAt(1).toUpperCase();
@@ -58,9 +59,9 @@ router.post("/login", async (req, res) => {
     }
     try {
         //search the user
-        const userInfo = await User.findOne({phone });
+        const userInfo = await User.findOne({phone});
         if(!userInfo){ //user not found
-            return res.status(400).json({message: "User not found"});
+            return res.status(404).json({message: "User not found"});
         }
         if(userInfo.password !== password){ //wrong password
             return res.status(400).json({message: "Wrong password"});

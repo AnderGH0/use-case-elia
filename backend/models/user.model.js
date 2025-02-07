@@ -10,7 +10,7 @@ const userSchema = new Schema({
     serviceCenter : {type: String, required: true},
     password : {type: String, required: true},
     workedDays : {type: Number, default: 0},
-    isAdmin : {type: Boolean, default: false},
+    isAdmin : Boolean,
     requests : {type:  [{type: mongoose.SchemaTypes.ObjectId, ref: "Request"}],  default: []},
     token : String
 })
