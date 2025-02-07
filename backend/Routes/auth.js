@@ -9,7 +9,7 @@ const ServiceCenter = require("../models/serviceCenter.model");
 
 // register
 router.post("/register", async (req, res) => {
-    const {firstName, lastName, phone, serviceCenter, password} = req.body;
+    const {firstName, lastName, phone, serviceCenter, password,isAdmin} = req.body;
     //Fields validation
     if(!firstName || !lastName || !phone || !serviceCenter || !password){
         return res.status(400).json({message: "User information is missing"});
@@ -31,7 +31,8 @@ router.post("/register", async (req, res) => {
             lastName,
             phone,
             serviceCenter,
-            password
+            password, 
+            isAdmin
         });
         // give an abbreviation
         user.abreveation = firstName.charAt(0).toUpperCase() + lastName.charAt(0).toUpperCase() + lastName.charAt(1).toUpperCase();
