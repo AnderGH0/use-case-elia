@@ -24,7 +24,7 @@ const authRoutes = require("./routes/auth.js");
 app.use("/auth", authRoutes);
 
 // USER
-const userRoutes = require("./routes/user.js");
+const userRoutes = require("./Routes/user.js");
 app.use("/user", userRoutes);
 
 // REQUEST

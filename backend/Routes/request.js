@@ -14,7 +14,7 @@ const Month = require("../models/planning.model");
 
 // router.get/post
 
-    app.post("/", authenticateToken, async (req, res) => {
+    router.post("/", authenticateToken, async (req, res) => {
     const {zone, targetUserPhone, isUrgent, startDate, endDate, userPhone} = req.body;
     if(!zone || !startDate || !endDate || !userPhone){
         return res.status(400).json({message: "Request information is missing"});
