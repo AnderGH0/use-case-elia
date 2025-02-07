@@ -5,8 +5,8 @@ const router = express.Router();
 //jwt
 const jwt = require("jsonwebtoken");
 //Models
-const User = require("./models/user.model");
-const ServiceCenter = require("./models/serviceCenter.model");
+const User = require("../models/user.model");
+const ServiceCenter = require("../models/serviceCenter.model");
 
 // register
 router.post("/register", async (req, res) => {
