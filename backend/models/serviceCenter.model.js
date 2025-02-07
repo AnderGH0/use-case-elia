@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const serviceCenterSchema = new Schema({
-    name: { type: String, required: true },
-    zone: { type: String, required: true },
+    name: String,
+    zone: String,
     users : { type: [{type: mongoose.SchemaTypes.ObjectId, ref:"User"}], default: [] },
     planning : { type: mongoose.SchemaTypes.ObjectId, ref:"Planning" },
 });

@@ -13,7 +13,7 @@ const Request = require("../models/request.model");
 const Month = require("../models/planning.model");
 
 // router.get/post
-/* 
+
     app.post("/", authenticateToken, async (req, res) => {
     const {zone, targetUserPhone, isUrgent, startDate, endDate, userPhone} = req.body;
     if(!zone || !startDate || !endDate || !userPhone){
@@ -27,7 +27,7 @@ const Month = require("../models/planning.model");
 });
 
 
-*/
+
 
 module.exports = router;
 
