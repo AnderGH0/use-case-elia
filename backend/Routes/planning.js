@@ -21,12 +21,13 @@ function addDays(date, days) {
 
 router.post('/', authenticateToken, async (req, res) => {
     // 2025-01-02
-    const {startDate, numUsers, weeks} = req.body; // Start weeks must be a multiple of users
+    const {startDate, numUsers, weeks, serviceCenter} = req.body; // Start weeks must be a multiple of users
     if(!startDate || !numUsers || !weeks) return res.status(400).json({message: "Planning information is missing"});
     if(weeks % numUsers !== 0) return res.status(400).json({message: "Weeks must be a multiple of users"});
     try {
         //create planning
         const planning = new Planning({
+            serviceCenter,
             startDate,
             endDate: addDays(startDate, weeks*7),
         });
@@ -37,27 +38,73 @@ router.post('/', authenticateToken, async (req, res) => {
         let changing = start;
         while (cycles <= weeks/numUsers){
             pickedUsers.forEach(async (user) => {
+                // create week
                 const newWeek = new Week({
-                    startDate: changing,
-                    monday : user,
-                    tuesday : user,
-                    wednesday : user,
-                    thursday : user,
-                    friday : user,
-                    saturday : user,
-                    sunday : user,
+                    thursday : {date: changing, user},
+                    friday : {date: addDays(changing, 1), user},
+                    saturday : {date: addDays(changing, 2), user},
+                    sunday : {date: addDays(changing, 3), user},
+                    monday : { date:  addDays(changing, 4), user},
+                    tuesday : {date: addDays(changing, 5), user},
+                    wednesday : {date: addDays(changing, 6), user},
                 });
                 await newWeek.save();
+                // save days in user
+                const currentUser = await User.findById(user._id);
+                for(let day in newWeek){
+                    currentUser.shifts.push(newWeek[day].date);
+                }
+                await currentUser.save();
+                // push week in planning
                 planning.weeks.push(newWeek);
+
                 changing = addDays(changing, 7);
             });
             cycles++;
         }
         await planning.save();
+        //save planning in the service center
+        const sc = await ServiceCenter.findOne({name: serviceCenter});
+        sc.planning = planning;
+        sc.save();
         return res.json({error: false, message: "Planning created successfully", planning});
     } catch (error) {
         return res.status(500).json({error: true, message: error.message});
     }
+});
+
+// get weeks by user
+router.get("/user/:userID", authenticateToken, async (req, res) => {
+    const {userID} = req.params;
+    if(!userID) return res.status(400).json({message: "User ID is missing"});
+    try {
+        const user = await User.findById(userID);
+        if(!user) return res.status(404).json({error: true, message: "User not found"});
+        return res.json({error: false, message: "These are the days the user is on duty", days: user.shifts});
+    } catch (error) {
+        return res.status(500).json({error: true, message: error.message});
+    }
+});
+
+//get planning by serviceCenter
+router.get("/sc/:name", authenticateToken, async (req, res) => {
+    const {name} = req.params;
+    if(!name) return res.status(400).json({message: "Service center name is missing"});
+    try {
+        //find service center
+        const sc = await ServiceCenter.findOne({name});
+        if(!sc) return res.status(404).json({error: true, message: "Service center not found"});
+        //find and populate planning
+        const planning = await Planning.findById(sc.planning).populate("weeks");
+        return res.json({error: false, message: "Planning for service center", planning});
+    } catch (error) {
+        return res.status(500).json({error: true, message: error.message});
+    }
+});
+
+//change shifts
+router.put("/switch-shifts", authenticateToken, async(req, res) => {
+
 });
 
 module.exports = router;
@@ -66,7 +113,7 @@ module.exports = router;
 // req.body => "days" : ["2025-01-01"]
 // Date.toLocaleString()  =>  "20/12/2012, 03:00:00"
 
-// GET       /user/:userId                          Avoir les semaines de travail par user --
-// GET       /zone/:name                            Recevoir l'horaire de la zone (par semaines) --
+// +- GET       /user/:userId                          Avoir les semaines de travail par user --
+// +- GET       /zone/:name                            Recevoir l'horaire de la zone (par semaines) --
 // PUT       /switch-shifts                         Change dans les weeks la personne qui va travailler un/des jour(s)
-// POST      /                     admin     Créer calendrier avec X users aléatoires
+// +- POST      /                     admin     Créer calendrier avec X users aléatoires
