@@ -22,10 +22,11 @@ const Month = require("../models/planning.model");
 router.get("/all/", authenticateToken, async (req, res) => {
 
     try {
+      const {user} = req.user
       // On vérifie que l'utilisateur authentifié est bien administrateur.
       // On suppose ici que le middleware 'authenticateToken' ajoute un objet 'user'
       // dans la requête avec une propriété 'isAdmin'.
-      if (!req.user.isAdmin) {
+      if (!user.isAdmin) {
         return res.status(403).json({ error: "Accès interdit : vous n'êtes pas administrateur." });
       }
      
