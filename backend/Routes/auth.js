@@ -9,6 +9,7 @@ const ServiceCenter = require("../models/serviceCenter.model");
 
 // register
 router.post("/register", async (req, res) => {
+    
     const {firstName, lastName, phone, serviceCenter, password, isAdmin} = req.body;
     //Fields validation
     if(!firstName || !lastName || !phone || !serviceCenter || !password){
@@ -21,7 +22,6 @@ router.post("/register", async (req, res) => {
             return res.status(400).json({message: "User already exists"});
         }
         const sc = await ServiceCenter.findOne({name: serviceCenter});
-        console.log(isUser)
         if(!sc){
             return res.status(404).json({message: "Service Center does not exist"});
         }
@@ -36,7 +36,7 @@ router.post("/register", async (req, res) => {
         // give an abbreviation
         user.abreveation = firstName.charAt(0).toUpperCase() + lastName.charAt(0).toUpperCase() + lastName.charAt(1).toUpperCase();
         //give token
-        const accessToken = jwt.sign({user}, process.env.ACCESS_TOKEN_SECRET, {expiresIn: "10h"});
+        const accessToken = jwt.sign({user}, process.env.ACCESS_TOKEN_SECRET, {expiresIn: "999h"});
         user.token = accessToken;
         await user.save();
         // add user to service center
