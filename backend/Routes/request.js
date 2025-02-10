@@ -6,11 +6,14 @@ const jwt = require("jsonwebtoken");
 const {authenticateToken} = require("../utilities");
 //Models
 const User = require("../models/user.model");
-const Shift = require("../models/week.model");
+const Week = require("../models/week.model");
 const RequestLog = require("../models/requestLog.model");
 const ServiceCenter = require("../models/serviceCenter.model");
 const Request = require("../models/request.model");
-const Month = require("../models/planning.model");
+const Planning = require("../models/planning.model");
+
+/// REASONS TO SWITCH, if REFUSED => Global
+
 
 // Create a Request
 router.post("/", authenticateToken, async (req, res) => {
@@ -21,7 +24,7 @@ router.post("/", authenticateToken, async (req, res) => {
     try {
         //verify if user exists
         const isUser = await User.findOne({phone:userPhone})
-        if(!isUser) return res.status(404).json({error:true, message:"User not found"})
+        if(!isUser) return res.status(  4).json({error:true, message:"User not found"})
         
         //create the request
         const request = new Request({
@@ -104,7 +107,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
         isRequest.pending = accepted;
         await isRequest.save();
 
-        //send notification to user, update calendar, update logs
+        //accept, verify : send notification to user, update calendar, update logs
 
         return res.json({error:false, message:"Request updated successfully", isRequest})
     } catch (error) {
@@ -127,11 +130,11 @@ router.get("/all", authenticateToken, async (req, res) => {
 router.get("/by-user/:userID", authenticateToken, async (req, res) => {
     const {userID} = req.params;
     try {
-        const user = await User.findById(userID);
+        const isUser = await User.findById(userID);
         //verify if user exists
-        if(!user) return res.status(404).json({error:true, message:"User not found"});
+        if(!isUser) return res.status(404).json({error:true, message:"User not found"});
         //gets all the requests for the user
-        const requests = await Request.find({userPhone: user.phone});
+        const requests = await Request.find({userPhone: isUser.phone});
         return res.json({error:false, message:"Here are the requests", requests})
     } catch (error) {
         return res.status(400).json({error: true, message:"Error getting requests", error})
@@ -142,7 +145,7 @@ router.get("/by-user/:userID", authenticateToken, async (req, res) => {
 router.get("/:requestID", authenticateToken, async (req, res) => {
     const {requestID} = req.params;
     try {
-        const request = await RequestLog.findById(requestID);
+        const request = await Request.findById(requestID);
         //verify if request exists
         if(!request) return res.status(404).json({error:true, message:"Request not found"});
         return res.json({error:false, message:"Here's the request", request})
