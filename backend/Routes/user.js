@@ -25,7 +25,6 @@ router.get("/all/", authenticateToken, async (req, res) => {
       // On vérifie que l'utilisateur authentifié est bien administrateur.
       // On suppose ici que le middleware 'authenticateToken' ajoute un objet 'user'
       // dans la requête avec une propriété 'isAdmin'.
-      console.log(req.user)
       if (!req.user.isAdmin) {
         return res.status(403).json({ error: "Accès interdit : vous n'êtes pas administrateur." });
       }

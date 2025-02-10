@@ -22,7 +22,6 @@ router.post("/register", async (req, res) => {
             return res.status(400).json({message: "User already exists"});
         }
         const sc = await ServiceCenter.findOne({name: serviceCenter});
-        console.log(isUser)
         if(!sc){
             return res.status(404).json({message: "Service Center does not exist"});
         }
