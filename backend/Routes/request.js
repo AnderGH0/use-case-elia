@@ -1,5 +1,6 @@
 //express rotuer
 const express = require("express");
+const mongoose = require("mongoose");
 const router = express.Router();
 //jwt
 const jwt = require("jsonwebtoken");
@@ -87,64 +88,6 @@ router.post("/", authenticateToken, async (req, res) => {
       .json({ error: true, message: "Error creating request", error });
   }
 });
-
-// Get info about a Request
-router.delete("/:id", authenticateToken, async (req, res) => {
-  const { requestID } = req.params.id;
-  try {
-    const isRequest = await Request.findById(requestID);
-    if (!isRequest)
-      return res
-        .status(404)
-        .json({ error: true, message: "Request not found" });
-    // Remove the request from the users' requests array
-    await User.updateMany(
-      { requests: requestID },
-      { $pull: { requests: requestID } }
-    );
-    await Request.deleteOne({ _id: requestID });
-    return res.json({ error: false, message: "Request deleted successfully" });
-  } catch (error) {
-    return res
-      .status(400)
-      .json({ error: true, message: "Error deleting request", error });
-  }
-});
-
-//--------- TESTER ces routes ------------
-// Accepter / refuser une requête
-router.put("/:id", authenticateToken, async (req, res) => {
-  const { requestID } = req.params.id;
-  const { accepted } = req.body; // status = "accepted" or "refused" send notification to user, "ignored" (for global requests)
-  try {
-    const isRequest = await Request.findById(requestID);
-    //verify if request exists
-    if (!isRequest)
-      return res
-        .status(404)
-        .json({ error: true, message: "Request not found" });
-    //verify if request is pending
-    if (isRequest.pending !== false)
-      return res
-        .status(400)
-        .json({ error: true, message: "Request already accepted or refused" });
-    isRequest.pending = accepted;
-    await isRequest.save();
-
-    //accept, verify : send notification to user, update calendar, update logs
-
-    return res.json({
-      error: false,
-      message: "Request updated successfully",
-      isRequest,
-    });
-  } catch (error) {
-    return res
-      .status(400)
-      .json({ error: true, message: "Error updating request status", error });
-  }
-});
-
 // Get all requests admin
 router.get("/all", authenticateToken, async (req, res) => {
   try {
@@ -184,29 +127,10 @@ router.get("/by-user/:userID", authenticateToken, async (req, res) => {
   }
 });
 
-// Get request by ID
-router.get("/:requestID", authenticateToken, async (req, res) => {
-  const { requestID } = req.params;
-  try {
-    const request = await Request.findById(requestID);
-    //verify if request exists
-    if (!request)
-      return res
-        .status(404)
-        .json({ error: true, message: "Request not found" });
-    return res.json({ error: false, message: "Here's the request", request });
-  } catch (error) {
-    return res
-      .status(400)
-      .json({ error: true, message: "Error getting request", error });
-  }
-});
-
-// + DELETE     /:requestId                Efface la requete
-
+// DELETE /:requestId - Efface la requete
 router.delete("/:requestId", authenticateToken, async (req, res) => {
   try {
-  const {user } = req.user
+    const { user } = req.user;
     // Vérifier que l'utilisateur est administrateur
     if (!user.isAdmin) {
       return res
@@ -232,6 +156,95 @@ router.delete("/:requestId", authenticateToken, async (req, res) => {
     res.json({ message: "Request supprimée avec succès" });
   } catch (error) {
     console.error("Erreur lors de la suppression de la request :", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get request by ID
+router.get("/:requestID", authenticateToken, async (req, res) => {
+  const { requestID } = req.params;
+  try {
+    const request = await Request.findById(requestID);
+    //verify if request exists
+    if (!request)
+      return res
+        .status(404)
+        .json({ error: true, message: "Request not found" });
+    return res.json({ error: false, message: "Here's the request", request });
+  } catch (error) {
+    return res
+      .status(400)
+      .json({ error: true, message: "Error getting request", error });
+  }
+});
+
+// Endpoint PATCH pour accepter une request
+router.patch("/:requestId/accept", authenticateToken, async (req, res) => {
+  try {
+    const { requestId } = req.params;
+
+    // Vérifier que l'ID fourni est un ObjectId valide
+    if (!mongoose.Types.ObjectId.isValid(requestId)) {
+      return res.status(400).json({ error: "L'ID fourni n'est pas valide" });
+    }
+
+    // Recherche de la request dans la base de données
+    const requestDoc = await Request.findById(requestId);
+    if (!requestDoc) {
+      return res.status(404).json({ error: "Request non trouvée" });
+    }
+
+    // Vérifier que la request est toujours en attente
+    if (!requestDoc.pending) {
+      return res
+        .status(400)
+        .json({ error: "Cette request a déjà été répondue." });
+    }
+
+    // Mettre à jour la request pour l'acceptation
+    requestDoc.pending = false;
+    requestDoc.picked = true;
+
+    await requestDoc.save();
+
+    res.json({ message: "Request acceptée avec succès.", request: requestDoc });
+  } catch (error) {
+    console.error("Erreur lors de l'acceptation de la request :", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint PATCH pour refuser une request
+router.patch("/:requestId/reject", authenticateToken, async (req, res) => {
+  try {
+    const { requestId } = req.params;
+
+    // Vérifier que l'ID fourni est un ObjectId valide
+    if (!mongoose.Types.ObjectId.isValid(requestId)) {
+      return res.status(400).json({ error: "L'ID fourni n'est pas valide" });
+    }
+
+    // Recherche de la request dans la base de données
+    const requestDoc = await Request.findById(requestId);
+    if (!requestDoc) {
+      return res.status(404).json({ error: "Request non trouvée" });
+    }
+
+    // Vérifier que la request est toujours en attente
+    if (!requestDoc.pending) {
+      return res
+        .status(400)
+        .json({ error: "Cette request a déjà été répondue." });
+    }
+
+    // Mettre à jour la request pour le refus
+    requestDoc.pending = false;
+    // Ici, picked reste false
+    await requestDoc.save();
+
+    res.json({ message: "Request refusée avec succès.", request: requestDoc });
+  } catch (error) {
+    console.error("Erreur lors du refus de la request :", error);
     res.status(500).json({ error: error.message });
   }
 });
