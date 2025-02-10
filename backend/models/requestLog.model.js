@@ -4,7 +4,7 @@ const Schema = mongoose.Schema;
 const requestLogSchema = new Schema({
     id: { type: String, required: true },
     absentee: { type: mongoose.SchemaTypes.ObjectId, ref: "User", required: true },
-    replacement: { type: mongoose.SchemaTypes.ObjectId, ref: "User", required: true },
+    replacement: { type: mongoose.SchemaTypes.ObjectId, ref: "User"},
     days: { type: [Date], required: true },
     isUrgent: {type: Boolean, default:false, required: true},
     pending: {type: Boolean, default:true, required: true},

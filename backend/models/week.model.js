@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const Schema = mongoose.Schema
 
 const weekSchema = new Schema({
-    number : {type: Number, required: true},
+    startDate: {type: Date, required: true},
     monday: {type: {date: Date, user:{type: mongoose.SchemaTypes.ObjectId, ref:"User"}}, required: true},
     tuesday: {type: {date: Date, user:{type: mongoose.SchemaTypes.ObjectId, ref:"User"}}, required: true},
     wednesday: {type: {date: Date, user:{type: mongoose.SchemaTypes.ObjectId, ref:"User"}}, required: true},
