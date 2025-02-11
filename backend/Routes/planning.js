@@ -25,20 +25,21 @@ router.post('/', authenticateToken, async (req, res) => {
     if(!startDate || !numUsers || !weeks) return res.status(400).json({message: "Planning information is missing"});
     if(weeks % numUsers !== 0) return res.status(400).json({message: "Weeks must be a multiple of users"});
     try {
+        let changing = new Date(startDate);
         //create planning
         const planning = new Planning({
             serviceCenter,
             startDate,
-            endDate: addDays(startDate, weeks*7),
+            endDate: addDays(changing, weeks*7),
         });
-        const start = new Date(startDate);
-        //array with picked users by worked days
-        const pickedUsers = await User.find().sort({workedDays:"asc"}).limit(numUsers); 
-        let cycles = 0;
-        let changing = start;
-        while (cycles <= weeks/numUsers){
-            pickedUsers.forEach(async (user) => {
-                // create week
+        //array with picked users by worked days depending on service center. Excludes Admins
+        const pickedUsers = await User.find({$and:[{serviceCenter}, {isAdmin : false}]}).sort({workedDays:"asc"}).limit(numUsers); 
+
+        let cycles = 0;        
+
+        //creates looping calendar 
+        while (cycles < weeks/numUsers){
+            for (const user of pickedUsers) {
                 const newWeek = new Week({
                     thursday : {date: changing, user},
                     friday : {date: addDays(changing, 1), user},
@@ -49,24 +50,28 @@ router.post('/', authenticateToken, async (req, res) => {
                     wednesday : {date: addDays(changing, 6), user},
                 });
                 await newWeek.save();
-                // save days in user
+                planning.weeks.push(newWeek);
+                await planning.save();
+                
+                //push the shift days in the user 
                 const currentUser = await User.findById(user._id);
-                for(let day in newWeek){
-                    currentUser.shifts.push(newWeek[day].date);
+                const newWeekObj = newWeek.toObject();
+                for (const day of Object.keys(newWeekObj)) {
+                    if (newWeekObj[day].date) {
+                        currentUser.shifts.push(newWeekObj[day].date);
+                    }
                 }
                 await currentUser.save();
-                // push week in planning
-                planning.weeks.push(newWeek);
-
+                
                 changing = addDays(changing, 7);
-            });
+            }
+            
             cycles++;
         }
-        await planning.save();
         //save planning in the service center
         const sc = await ServiceCenter.findOne({name: serviceCenter});
         sc.planning = planning;
-        sc.save();
+        await sc.save();
         return res.json({error: false, message: "Planning created successfully", planning});
     } catch (error) {
         return res.status(500).json({error: true, message: error.message});
@@ -86,7 +91,7 @@ router.get("/user/:userID", authenticateToken, async (req, res) => {
     }
 });
 
-//get planning by serviceCenter
+//get planning by serviceCenter, case sensitive
 router.get("/sc/:name", authenticateToken, async (req, res) => {
     const {name} = req.params;
     if(!name) return res.status(400).json({message: "Service center name is missing"});
@@ -104,7 +109,10 @@ router.get("/sc/:name", authenticateToken, async (req, res) => {
 
 //change shifts
 router.put("/switch-shifts", authenticateToken, async(req, res) => {
+    const {days, absentee, replacement} = req.body;
 
+    if(!days || !absentee || !replacement) return res.status(400).json({error: true, message:"Missing information"}) 
+    
 });
 
 module.exports = router;
@@ -113,7 +121,7 @@ module.exports = router;
 // req.body => "days" : ["2025-01-01"]
 // Date.toLocaleString()  =>  "20/12/2012, 03:00:00"
 
-// +- GET       /user/:userId                          Avoir les semaines de travail par user --
-// +- GET       /zone/:name                            Recevoir l'horaire de la zone (par semaines) --
-// PUT       /switch-shifts                         Change dans les weeks la personne qui va travailler un/des jour(s)
-// +- POST      /                     admin     Créer calendrier avec X users aléatoires
+// + GET    /user/:userId                          Avoir les semaines de travail par user --
+// + GET    /zone/:name                            Recevoir l'horaire de la zone (par semaines) --
+// PUT       /switch-shifts                         Change dans les weeks la personne qui va travailler un/des date(s)
+// + POST   /                     admin     Créer calendrier avec X users aléatoires
