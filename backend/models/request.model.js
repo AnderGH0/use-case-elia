@@ -10,6 +10,7 @@ const requestSchema = new Schema({
     picked: { type: Boolean, default:false },   // quelqu'un a accepté
     isGlobal: { type: Boolean, default:false },
     isUrgent: { type: Boolean, default:false },
+    //reason: {type: String, required: true}
 });
 
 module.exports = mongoose.model("Request", requestSchema);

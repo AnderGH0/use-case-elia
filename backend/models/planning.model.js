@@ -3,9 +3,10 @@ const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
 const planningSchema = new Schema({
-    startDate: {type: Date, required: true},
-    endDate: {type: Date, required: true},
-    weeks : {type : [{type: mongoose.SchemaTypes.ObjectId, ref: "Week"}], required: true},
+    serviceCenter : {type: String, required: true},
+    startDate: Date,
+    endDate: Date,
+    weeks : {type : [{type: mongoose.SchemaTypes.ObjectId, ref: "Week"}], default: []},
 })
 
 module.exports = mongoose.model("Planning", planningSchema);

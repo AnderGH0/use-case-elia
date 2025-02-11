@@ -24,7 +24,7 @@ router.post("/", authenticateToken, async (req, res) => {
     try {
         //verify if user exists
         const isUser = await User.findOne({phone:userPhone})
-        if(!isUser) return res.status(  4).json({error:true, message:"User not found"})
+        if(!isUser) return res.status(404).json({error:true, message:"User not found"})
         
         //create the request
         const request = new Request({
@@ -42,13 +42,13 @@ router.post("/", authenticateToken, async (req, res) => {
         // saves the request in the logs
         const log = new RequestLog({
             id: request._id,
-            absentee: isUser._id,
-            replacement: targetPhone ? targetPhone : null,
+            absentee: isUser,
             days,
             isUrgent,
             pending: true,
             declined: false
-        })
+        });
+        await log.save();
         if(targetPhone){ // if the request isn't global
             // search target user
             const isTarget = await User.findOne({phone: targetPhone});
@@ -75,9 +75,9 @@ router.post("/", authenticateToken, async (req, res) => {
     } 
 });
 
-// Get info about a Request
+// Delete request
 router.delete("/:id", authenticateToken, async (req, res) => {
-    const {requestID} = req.params.id
+    const requestID = req.params.id
     try {
         const isRequest = await Request.findById(requestID);
         if(!isRequest) return res.status(404).json({error: true, message:"Request not found"});
@@ -93,30 +93,9 @@ router.delete("/:id", authenticateToken, async (req, res) => {
     }
 });
 
-//--------- TESTER ces routes ------------
-// Accepter / refuser une requête
-router.put("/:id", authenticateToken, async (req, res) => {
-    const {requestID} = req.params.id
-    const {accepted} = req.body; // status = "accepted" or "refused" send notification to user, "ignored" (for global requests)
-    try {
-        const isRequest = await Request.findById(requestID);
-        //verify if request exists
-        if(!isRequest) return res.status(404).json({error: true, message:"Request not found"});
-        //verify if request is pending
-        if(isRequest.pending !== false) return res.status(400).json({error: true, message:"Request already accepted or refused"});
-        isRequest.pending = accepted;
-        await isRequest.save();
-
-        //accept, verify : send notification to user, update calendar, update logs
-
-        return res.json({error:false, message:"Request updated successfully", isRequest})
-    } catch (error) {
-        return res.status(400).json({error: true, message:"Error updating request status", error})
-    }
-});
-
 // Get all requests admin
-router.get("/all", authenticateToken, async (req, res) => {
+router.get("/all",
+    authenticateToken, async (req, res) => {
     try {
         //gets all the requests
         const requests = await RequestLog.find();
@@ -134,7 +113,7 @@ router.get("/by-user/:userID", authenticateToken, async (req, res) => {
         //verify if user exists
         if(!isUser) return res.status(404).json({error:true, message:"User not found"});
         //gets all the requests for the user
-        const requests = await Request.find({userPhone: isUser.phone});
+        const requests = await Request.find({userPhone: isUser.phone})
         return res.json({error:false, message:"Here are the requests", requests})
     } catch (error) {
         return res.status(400).json({error: true, message:"Error getting requests", error})
@@ -154,6 +133,28 @@ router.get("/:requestID", authenticateToken, async (req, res) => {
     }
 });
 
+
+
+// Accepter / refuser une requête
+router.put("/:id", authenticateToken, async (req, res) => {
+    const {requestID} = req.params.id
+    const {accepted} = req.body; // status = "accepted" or "refused" send notification to user, "ignored" (for global requests)
+    try {
+        const isRequest = await Request.findById(requestID);
+        //verify if request exists
+        if(!isRequest) return res.status(404).json({error: true, message:"Request not found"});
+        //verify if request is pending
+        if(isRequest.pending !== false) return res.status(400).json({error: true, message:"Request already accepted or refused"});
+        isRequest.pending = accepted;
+        await isRequest.save();
+
+        //accept, refuse : send notification to user, update calendar, update logs
+
+        return res.json({error:false, message:"Request updated successfully", isRequest})
+    } catch (error) {
+        return res.status(400).json({error: true, message:"Error updating request status", error})
+    }
+});
 
 module.exports = router;
 
