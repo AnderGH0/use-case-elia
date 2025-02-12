@@ -7,11 +7,8 @@ const {authenticateToken} = require("../utilities");
 //Models
 const User = require("../models/user.model");
 const Week = require("../models/week.model");
-const RequestLog = require("../models/requestLog.model");
 const ServiceCenter = require("../models/serviceCenter.model");
-const Request = require("../models/request.model");
 const Planning = require("../models/planning.model");
-// router.get/post
 
 function addDays(date, days) {
     const newDate = new Date(date);
@@ -19,8 +16,9 @@ function addDays(date, days) {
     return newDate; //newDate.toLocaleString()
 }
 
+//create a planning, with X number users and Y number of weeks. Make it so you cant create a planning overlapping another planning
 router.post('/', authenticateToken, async (req, res) => {
-    // 2025-01-02
+    // verify the startDate so it doenst overlap with another planning in the same service center
     const {startDate, numUsers, weeks, serviceCenter} = req.body; // Start weeks must be a multiple of users
     if(!startDate || !numUsers || !weeks) return res.status(400).json({message: "Planning information is missing"});
     if(weeks % numUsers !== 0) return res.status(400).json({message: "Weeks must be a multiple of users"});
@@ -41,13 +39,13 @@ router.post('/', authenticateToken, async (req, res) => {
         while (cycles < weeks/numUsers){
             for (const user of pickedUsers) {
                 const newWeek = new Week({
-                    thursday : {date: changing, user},
-                    friday : {date: addDays(changing, 1), user},
-                    saturday : {date: addDays(changing, 2), user},
-                    sunday : {date: addDays(changing, 3), user},
-                    monday : { date:  addDays(changing, 4), user},
-                    tuesday : {date: addDays(changing, 5), user},
-                    wednesday : {date: addDays(changing, 6), user},
+                    thursday : {date: changing, user: user._id},
+                    friday : {date: addDays(changing, 1), user: user._id},
+                    saturday : {date: addDays(changing, 2), user: user._id},
+                    sunday : {date: addDays(changing, 3), user: user._id},
+                    monday : { date:  addDays(changing, 4), user: user._id},
+                    tuesday : {date: addDays(changing, 5), user: user._id},
+                    wednesday : {date: addDays(changing, 6), user: user._id},
                 });
                 await newWeek.save();
                 planning.weeks.push(newWeek);
@@ -108,12 +106,40 @@ router.get("/sc/:name", authenticateToken, async (req, res) => {
 });
 
 //change shifts
-router.put("/switch-shifts", authenticateToken, async(req, res) => {
-    const {days, absentee, replacement} = req.body;
+// router.put("/switch-shifts", authenticateToken, async(req, res) => {
+//     const {days, absentee, replacement} = req.body;
 
-    if(!days || !absentee || !replacement) return res.status(400).json({error: true, message:"Missing information"}) 
+//     if(!days || !absentee || !replacement) return res.status(400).json({error: true, message:"Missing information"}) 
     
-});
+// });
+
+//delee planning, delete shift from users, delete weeks from collection
+router.delete("/:id", authenticateToken, async(req, res) =>{
+    const {id} = req.params;
+    //delete all weeks
+    try {
+        //delete weeks from this planning from the weeks collection
+        const planning = await Planning.findById(id).populate("weeks");
+        for (const week of planning.weeks) {
+            await Week.findByIdAndDelete(week._id);
+        }
+        //delete shift days from this planning from the users collection
+        const users = await User.find({serviceCenter: planning.serviceCenter});
+        for (const user of users) {
+            user.shifts = [];
+            await user.save();
+        }
+        //delete planning from the service center
+        const sc = await ServiceCenter.findOne({name: planning.serviceCenter});
+        sc.planning = null;
+        await sc.save();
+        //delete planning
+        await Planning.findByIdAndDelete(id);
+        return res.json({error:false, message:"Planning deleted successfully"});       
+    } catch (error) {
+        return res.status(500).json({error: true, message: error.message});
+    }
+})
 
 module.exports = router;
 
@@ -125,3 +151,5 @@ module.exports = router;
 // + GET    /zone/:name                            Recevoir l'horaire de la zone (par semaines) --
 // PUT       /switch-shifts                         Change dans les weeks la personne qui va travailler un/des date(s)
 // + POST   /                     admin     Créer calendrier avec X users aléatoires
+
+
