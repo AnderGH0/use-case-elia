@@ -214,6 +214,8 @@ router.patch("/:requestId/accept", authenticateToken, async (req, res) => {
   }
 });
 
+// ajouter le fait de changer entre les deux id dans le Planning
+
 // Endpoint PATCH pour refuser une request
 router.patch("/:requestId/reject", authenticateToken, async (req, res) => {
   try {
