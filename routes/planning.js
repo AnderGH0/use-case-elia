@@ -1,214 +1,207 @@
-// Imports et initialisation
+//express rotuer
 const express = require("express");
 const router = express.Router();
-const mongoose = require("mongoose");
-const { authenticateToken } = require("../utilities");
-
-// Modèles
+//jwt
+const {authenticateToken} = require("../utilities");
+//Models
 const User = require("../models/user.model");
 const Week = require("../models/week.model");
 const ServiceCenter = require("../models/serviceCenter.model");
 const Planning = require("../models/planning.model");
+const Request = require("../models/request.model");
 
-// Fonction utilitaire : ajouter des jours à une date
 function addDays(date, days) {
-  const newDate = new Date(date);
-  newDate.setDate(newDate.getDate() + days);
-  return newDate;
+    const newDate = new Date(date);
+    newDate.setDate(date.getDate() + days);
+    return newDate; //newDate.toLocaleString()
 }
 
-/**
- * Créer un planning pour un service center, réparti sur X utilisateurs et Y semaines.
- * Vérifie que le planning ne chevauche pas un autre planning déjà existant.
- * Utilise une transaction pour garantir l’atomicité des opérations.
- */
+//create a planning, with X number users and Y number of weeks. Make it so you cant create a planning overlapping another planning
 router.post('/', authenticateToken, async (req, res) => {
-  const { startDate, numUsers, weeks, serviceCenter } = req.body;
-  if (!startDate || !numUsers || !weeks || !serviceCenter) {
-    return res.status(400).json({ message: "Planning information is missing" });
-  }
-  if (weeks % numUsers !== 0) {
-    return res.status(400).json({ message: "Weeks must be a multiple of users" });
-  }
+    
+    const {startDate, numUsers, weeks, serviceCenter} = req.body; // Start weeks must be a multiple of users
+    if(!startDate || !numUsers || !weeks) return res.status(400).json({message: "Planning information is missing"});
+    if(weeks % numUsers !== 0) return res.status(400).json({message: "Weeks must be a multiple of users"});
 
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  try {
-    // Recherche du Service Center
-    const sc = await ServiceCenter.findOne({ name: serviceCenter }).session(session);
-    if (!sc) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(404).json({ error: true, message: "Service center not found" });
-    }
+    try {
+        const sc = await ServiceCenter.findOne({name: serviceCenter});
+        if(!sc) return res.status(404).json({error: true, message: "Service center not found"});
 
-    // Création du planning avec calcul de l'endDate (weeks * 7 jours)
-    const planning = new Planning({
-      serviceCenter,
-      startDate,
-      endDate: addDays(new Date(startDate), weeks * 7),
-      weeks: [] // Initialisation de l'array de semaines
-    });
-
-    // Vérification du chevauchement des plannings existants pour ce service center
-    const overlappingPlannings = await Planning.find({
-      serviceCenter,
-      $or: [
-        { startDate: { $lte: planning.endDate, $gte: planning.startDate } },
-        { endDate: { $lte: planning.endDate, $gte: planning.startDate } },
-        { startDate: { $lte: planning.startDate }, endDate: { $gte: planning.endDate } }
-      ]
-    }).session(session);
-
-    if (overlappingPlannings && overlappingPlannings.length > 0) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(400).json({ error: true, message: "Planning overlaps with another planning" });
-    }
-
-    // Récupération des utilisateurs du service center (hors admins), triés par workedDays
-    const pickedUsers = await User.find({ serviceCenter, isAdmin: false })
-      .sort({ workedDays: 1 })
-      .limit(numUsers)
-      .session(session);
-
-    if (pickedUsers.length < numUsers) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(400).json({ error: true, message: "Not enough users available to create planning" });
-    }
-
-    let changing = new Date(startDate);
-    const totalCycles = weeks / numUsers;
-
-    // Boucle pour créer les semaines en répartissant les shifts entre les utilisateurs
-    for (let cycle = 0; cycle < totalCycles; cycle++) {
-      for (const user of pickedUsers) {
-        // Création d'une semaine pour l'utilisateur courant
-        const newWeek = new Week({
-          thursday: { date: changing, user: user._id },
-          friday: { date: addDays(changing, 1), user: user._id },
-          saturday: { date: addDays(changing, 2), user: user._id },
-          sunday: { date: addDays(changing, 3), user: user._id },
-          monday: { date: addDays(changing, 4), user: user._id },
-          tuesday: { date: addDays(changing, 5), user: user._id },
-          wednesday: { date: addDays(changing, 6), user: user._id },
+        let changing = new Date(startDate);
+        //create planning
+        const planning = new Planning({
+            serviceCenter,
+            startDate,
+            endDate: addDays(changing, weeks*7),
         });
-        await newWeek.save({ session });
-        // On stocke l'ID de la semaine dans le planning
-        planning.weeks.push(newWeek._id);
 
-        // Mise à jour des shifts de l'utilisateur en une seule opération
-        user.shifts.push(
-          changing,
-          addDays(changing, 1),
-          addDays(changing, 2),
-          addDays(changing, 3),
-          addDays(changing, 4),
-          addDays(changing, 5),
-          addDays(changing, 6)
-        );
-        // Augmentation du compteur workedDays (facultatif selon votre logique)
-        user.workedDays += 7;
-        await user.save({ session });
+        // verify if the new planning overlaps with another planning
+        const existingPlanning = await Planning.find({serviceCenter})
+        const isOverlapping = existingPlanning && ((planning.startDate >= existingPlanning.startDate && planning.startDate <= existingPlanning.endDate) || (planning.endDate >= existingPlanning.startDate && planning.endDate <= existingPlanning.endDate));
+        if(isOverlapping) return res.status(400).json({error: true, message: "Planning overlaps with another planning"});
 
-        // Passage à la semaine suivante
-        changing = addDays(changing, 7);
-      }
+        //array with picked users by worked days depending on service center. Excludes Admins
+        const pickedUsers = await User.find({$and:[{serviceCenter}, {isAdmin : false}]}).sort({workedDays:"asc"}).limit(numUsers); 
+
+        let cycles = 0;        
+
+        //creates looping calendar 
+        while (cycles < weeks/numUsers){
+            for (const user of pickedUsers) {
+                const newWeek = new Week({
+                    thursday : {date: changing, user: user._id},
+                    friday : {date: addDays(changing, 1), user: user._id},
+                    saturday : {date: addDays(changing, 2), user: user._id},
+                    sunday : {date: addDays(changing, 3), user: user._id},
+                    monday : { date:  addDays(changing, 4), user: user._id},
+                    tuesday : {date: addDays(changing, 5), user: user._id},
+                    wednesday : {date: addDays(changing, 6), user: user._id},
+                });
+                planning.weeks.push(newWeek);
+                await planning.save();
+                
+                //push the shift days in the user 
+                const currentUser = await User.findById(user._id);
+                const newWeekObj = newWeek.toObject();
+                for (const day of Object.keys(newWeekObj)) {
+                    if (newWeekObj[day].date) {
+                        currentUser.shifts.push(newWeekObj[day].date);
+                    }
+                }
+                await currentUser.save();
+                newWeek.serviceCenter = serviceCenter;
+                await newWeek.save();
+
+                changing = addDays(changing, 7);
+            }
+            
+            cycles++;
+        }
+        //save planning in the service center
+        sc.planning = planning;
+        await sc.save();
+
+        return res.json({error: false, message: "Planning created successfully", planning});
+    } catch (error) {
+        return res.status(500).json({error: true, message: error.message});
     }
-
-    await planning.save({ session });
-
-    // Mise à jour du planning dans le Service Center
-    sc.planning = planning._id;
-    await sc.save({ session });
-
-    await session.commitTransaction();
-    session.endSession();
-    return res.json({ error: false, message: "Planning created successfully", planning });
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    console.error("Error creating planning:", error);
-    return res.status(500).json({ error: true, message: error.message });
-  }
 });
 
-/**
- * GET /user/:userID
- * Récupère les jours de garde (shifts) d'un utilisateur donné.
- */
+// get weeks by user
 router.get("/user/:userID", authenticateToken, async (req, res) => {
-  const { userID } = req.params;
-  if (!userID) return res.status(400).json({ message: "User ID is missing" });
-  try {
-    const user = await User.findById(userID);
-    if (!user) return res.status(404).json({ error: true, message: "User not found" });
-    return res.json({ error: false, message: "These are the days the user is on duty", days: user.shifts });
-  } catch (error) {
-    return res.status(500).json({ error: true, message: error.message });
-  }
+    const {userID} = req.params;
+    if(!userID) return res.status(400).json({message: "User ID is missing"});
+    try {
+        const user = await User.findById(userID);
+        if(!user) return res.status(404).json({error: true, message: "User not found"});
+        return res.json({error: false, message: "These are the days the user is on duty", days: user.shifts});
+    } catch (error) {
+        return res.status(500).json({error: true, message: error.message});
+    }
 });
 
-/**
- * GET /sc/:name
- * Récupère le planning associé à un service center (nom sensible à la casse).
- */
+//get planning by serviceCenter, case sensitive
 router.get("/sc/:name", authenticateToken, async (req, res) => {
-  const { name } = req.params;
-  if (!name) return res.status(400).json({ message: "Service center name is missing" });
-  try {
-    const sc = await ServiceCenter.findOne({ name });
-    if (!sc) return res.status(404).json({ error: true, message: "Service center not found" });
-    const planning = await Planning.findById(sc.planning).populate("weeks");
-    return res.json({ error: false, message: "Planning for service center", planning });
-  } catch (error) {
-    return res.status(500).json({ error: true, message: error.message });
-  }
+    const {name} = req.params;
+    if(!name) return res.status(400).json({message: "Service center name is missing"});
+    try {
+        //find service center
+        const sc = await ServiceCenter.findOne({name});
+        if(!sc) return res.status(404).json({error: true, message: "Service center not found"});
+        //find and populate planning
+        const planning = await Planning.findById(sc.planning).populate("weeks");
+        return res.json({error: false, message: "Planning for service center", planning});
+    } catch (error) {
+        return res.status(500).json({error: true, message: error.message});
+    }
 });
 
-/**
- * DELETE /:id
- * Supprime un planning, ainsi que les semaines associées et efface les shifts des utilisateurs.
- * Utilise une transaction pour garantir l’atomicité des suppressions.
- */
-router.delete("/:id", authenticateToken, async (req, res) => {
-  const { id } = req.params;
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  try {
-    const planning = await Planning.findById(id).populate("weeks").session(session);
-    if (!planning) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(404).json({ error: true, message: "Planning not found" });
+
+router.put("/switch-shifts/:requestID", authenticateToken, async(req, res) => {
+    const {requestID} = req.params  
+    const {accepted} = req.body; // "accepted", "ignored"
+    try {
+        const isRequest = await Request.findById(requestID);
+        //verify if request exists
+        if(!isRequest) return res.status(404).json({error: true, message:"Request not found"});
+        //verify if request is pending
+        if(isRequest.pending === false) return res.status(400).json({error: true, message:"Request already accepted or refused"});
+        
+        //modify the days in the database
+        if(accepted === "accepted"){
+            isRequest.pending = false;
+            isRequest.picked = true;
+            await isRequest.save();
+            //modify the days in the target's shifts
+            const target = await User.findOne({phone: isRequest.targetPhone});
+            if(!target) return res.status(404).json({error: true, message:"Target user not found"});
+            isRequest.days.forEach(async (day) => {
+                target.shifts.push(day);
+            })
+            await target.save();
+
+            //modify the days in the absentee's shifts
+            const absentee = await User.findOne({phone: isRequest.userPhone});
+            isRequest.days.forEach(async (day) => {
+                if(absentee.shifts.includes(day)) absentee.shifts.splice(absentee.shifts.indexOf(day), 1);
+            })
+            await absentee.save();
+            
+            //----- FIX ME  ----- replace the absentee with the target in the week collection 
+            for (let day of isRequest.days){
+                const thisDay = new Date(day);
+                const dayName = thisDay.toLocaleDateString("en-US", {weekday: "long"}); //get the name of the day
+                // look for the exact week in the collection using the date
+                const week = await Week.findOne({[dayName.toLowerCase()]: {$elemMatch: {date: thisDay}}});
+                if (week) {
+                    //replace the absentee with the target
+                    week[dayName.toLowerCase()].user = target._id;
+                    await week.save();
+                }
+            }
+            return res.json({error:false, message:"Request accepted successfully", isRequest})
+        }
+        return res.json({error:false, message:"Request was not accepted, nothing changed", isRequest})
+    } catch (error) {
+        return res.status(400).json({error: true, message:"Error updating request status", error})
     }
-    // Suppression de chaque semaine liée
-    for (const week of planning.weeks) {
-      await Week.findByIdAndDelete(week._id, { session });
-    }
-    // Pour tous les utilisateurs du même service center, on vide leur tableau de shifts
-    const users = await User.find({ serviceCenter: planning.serviceCenter }).session(session);
-    for (const user of users) {
-      user.shifts = [];
-      await user.save({ session });
-    }
-    // Mise à jour du Service Center pour retirer la référence au planning
-    const sc = await ServiceCenter.findOne({ name: planning.serviceCenter }).session(session);
-    if (sc) {
-      sc.planning = null;
-      await sc.save({ session });
-    }
-    // Suppression du planning
-    await Planning.findByIdAndDelete(id, { session });
-    await session.commitTransaction();
-    session.endSession();
-    return res.json({ error: false, message: "Planning deleted successfully" });
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    return res.status(500).json({ error: true, message: error.message });
-  }
 });
+
+//delee planning, delete shift from users, delete weeks from collection
+router.delete("/:id", authenticateToken, async(req, res) =>{
+    const {id} = req.params;
+    //delete all weeks
+    try {
+        //delete weeks from this planning from the weeks collection
+        const planning = await Planning.findById(id).populate("weeks");
+        for (const week of planning.weeks) {
+            await Week.findByIdAndDelete(week._id);
+        }
+        //delete shift days from this planning from the users collection
+        const users = await User.find({serviceCenter: planning.serviceCenter});
+        for (const user of users) {
+            user.shifts = [];
+            await user.save();
+        }
+        //delete planning from the service center
+        const sc = await ServiceCenter.findOne({name: planning.serviceCenter});
+        sc.planning = null;
+        await sc.save();
+        //delete planning
+        await Planning.findByIdAndDelete(id);
+        return res.json({error:false, message:"Planning deleted successfully"});       
+    } catch (error) {
+        return res.status(500).json({error: true, message: error.message});
+    }
+})
 
 module.exports = router;
+
+
+// req.body => "days" : ["2025-01-01"]
+// Date.toLocaleString()  =>  "20/12/2012, 03:00:00"
+
+// + GET    /user/:userId                          Avoir les semaines de travail par user --
+// + GET    /zone/:name                            Recevoir l'horaire de la zone (par semaines) --
+// PUT       /switch-shifts                         Change dans les weeks la personne qui va travailler un/des date(s)
+// + POST   /                     admin     Créer calendrier avec X users aléatoires
