@@ -162,7 +162,7 @@ router.put("/:requestID", authenticateToken, async (req, res) => {
             })
             await absentee.save();
             
-            //replace the absentee with the target in the week collection ----------- FIX ME  -------------------
+            //----- FIX ME  ----- replace the absentee with the target in the week collection 
             for (let day of isRequest.days){
                 const thisDay = new Date(day);
                 const dayName = thisDay.toLocaleDateString("en-US", {weekday: "long"}); //get the name of the day
