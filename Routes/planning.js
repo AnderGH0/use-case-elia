@@ -22,7 +22,7 @@ function addDays(date, days) {
  * Vérifie que le planning ne chevauche pas un autre planning déjà existant.
  * Utilise une transaction pour garantir l’atomicité des opérations.
  */
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/create', authenticateToken, async (req, res) => {
   const { startDate, numUsers, weeks, serviceCenter } = req.body;
   if (!startDate || !numUsers || !weeks || !serviceCenter) {
     return res.status(400).json({ message: "Planning information is missing" });
