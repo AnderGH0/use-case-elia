@@ -201,13 +201,27 @@ router.patch("/:requestId/accept", authenticateToken, async (req, res) => {
         .json({ error: "Cette request a déjà été répondue." });
     }
 
-    // Mettre à jour la request pour l'acceptation
+    // Appel à la fonction de switch du planning.
+    // On suppose que requestDoc contient les propriétés nécessaires :
+    // planningId, weekId, day et userFrom
+    const switchResult = await planningService.switchShift({
+      planningId: requestDoc.planningId,
+      weekId: requestDoc.weekId,
+      day: requestDoc.day,
+      userFrom: requestDoc.userFrom, // L'utilisateur qui cède son shift
+      userTo: req.user.id             // L'utilisateur qui accepte la demande
+    });
+
+    // Mettre à jour la request pour marquer qu'elle a été acceptée
     requestDoc.pending = false;
     requestDoc.picked = true;
-
     await requestDoc.save();
 
-    res.json({ message: "Request acceptée avec succès.", request: requestDoc });
+    res.json({ 
+      message: "Request acceptée et shift switché avec succès.", 
+      request: requestDoc,
+      switchResult // informations éventuelles renvoyées par la fonction switchShift
+    });
   } catch (error) {
     console.error("Erreur lors de l'acceptation de la request :", error);
     res.status(500).json({ error: error.message });
