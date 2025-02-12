@@ -26,8 +26,8 @@ router.post('/', authenticateToken, async (req, res) => {
     try {
         const sc = await ServiceCenter.findOne({name: serviceCenter});
         if(!sc) return res.status(404).json({error: true, message: "Service center not found"});
-
-        let changing = new Date(startDate);
+        
+        let changing = new Date(startDate); 
         //create planning
         const planning = new Planning({
             serviceCenter,
@@ -36,7 +36,8 @@ router.post('/', authenticateToken, async (req, res) => {
         });
 
         // verify if the new planning overlaps with another planning
-        const existingPlanning = await Planning.find({serviceCenter})
+        const existingPlanning = await Planning.findOne({serviceCenter})
+        console.log(existingPlanning);
         const isOverlapping = existingPlanning && ((planning.startDate >= existingPlanning.startDate && planning.startDate <= existingPlanning.endDate) || (planning.endDate >= existingPlanning.startDate && planning.endDate <= existingPlanning.endDate));
         if(isOverlapping) return res.status(400).json({error: true, message: "Planning overlaps with another planning"});
 
