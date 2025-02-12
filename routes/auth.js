@@ -45,7 +45,7 @@ router.post("/register", async (req, res) => {
         await sc.save();
         return res.status(201).json({error:false, message: "User created successfully", user});
     } catch (error) {
-        return res.status(400).json({error: true, message: "Error creating user", error});
+        return res.status(400).json({error: true, message: error.message});
     }
 
 });
@@ -73,7 +73,7 @@ router.post("/login", async (req, res) => {
         const accessToken = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {expiresIn: "10h"});
         return res.json({error: false, message: "User logged in successfully", user, accessToken});
     } catch (error) {
-        return res.status(400).json({error: true, message: "Error logging in", error});
+        return res.status(400).json({error: true, message: error.message});
     }
 });
 
