@@ -22,8 +22,6 @@ router.post('/', authenticateToken, async (req, res) => {
     const {startDate, numUsers, weeks, serviceCenter} = req.body; // Start weeks must be a multiple of users
     if(!startDate || !numUsers || !weeks) return res.status(400).json({message: "Planning information is missing"});
     if(weeks % numUsers !== 0) return res.status(400).json({message: "Weeks must be a multiple of users"});
-    
-    
 
     try {
         const sc = await ServiceCenter.findOne({name: serviceCenter});
@@ -87,7 +85,6 @@ router.post('/', authenticateToken, async (req, res) => {
     }
 });
 
-
 // get weeks by user
 router.get("/user/:userID", authenticateToken, async (req, res) => {
     const {userID} = req.params;
@@ -117,13 +114,55 @@ router.get("/sc/:name", authenticateToken, async (req, res) => {
     }
 });
 
-//change shifts
-// router.put("/switch-shifts", authenticateToken, async(req, res) => {
-//     const {days, absentee, replacement} = req.body;
 
-//     if(!days || !absentee || !replacement) return res.status(400).json({error: true, message:"Missing information"}) 
-    
-// });
+router.post("/switch-shifts/:requestID", authenticateToken, async(req, res) => {
+    const {requestID} = req.params  
+    const {accepted} = req.body; // "accepted", "ignored"
+    try {
+        const isRequest = await Request.findById(requestID);
+        //verify if request exists
+        if(!isRequest) return res.status(404).json({error: true, message:"Request not found"});
+        //verify if request is pending
+        if(isRequest.pending === false) return res.status(400).json({error: true, message:"Request already accepted or refused"});
+        
+        //modify the days in the database
+        if(accepted === "accepted"){
+            isRequest.pending = false;
+            isRequest.picked = true
+            await isRequest.save();
+            //modify the days in the target's shifts
+            const target = await User.findOne({phone: isRequest.targetPhone});
+            if(!target) return res.status(404).json({error: true, message:"Target user not found"});
+            isRequest.days.forEach(async (day) => {
+                target.shifts.push(day);
+            })
+            await target.save();
+
+            //modify the days in the absentee's shifts
+            const absentee = await User.findOne({phone: isRequest.userPhone});
+            isRequest.days.forEach(async (day) => {
+                if(absentee.shifts.includes(day)) absentee.shifts.splice(absentee.shifts.indexOf(day), 1);
+            })
+            await absentee.save();
+            
+            //----- FIX ME  ----- replace the absentee with the target in the week collection 
+            for (let day of isRequest.days){
+                const thisDay = new Date(day);
+                const dayName = thisDay.toLocaleDateString("en-US", {weekday: "long"}); //get the name of the day
+                // look for the exact week in the collection using the date
+                const week = await Week.findOne({[dayName.toLowerCase()]: {$elemMatch: {date: thisDay}}});
+                if (week) {
+                    //replace the absentee with the target
+                    week[dayName.toLowerCase()].user = target._id;
+                    await week.save();
+                }
+            }
+        }
+        return res.json({error:false, message:"Request updated successfully", isRequest})
+    } catch (error) {
+        return res.status(400).json({error: true, message:"Error updating request status", error})
+    }
+});
 
 //delee planning, delete shift from users, delete weeks from collection
 router.delete("/:id", authenticateToken, async(req, res) =>{
