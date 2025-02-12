@@ -8,9 +8,7 @@ const {authenticateToken} = require("../utilities");
 const User = require("../models/user.model");
 const Week = require("../models/week.model");
 const RequestLog = require("../models/requestLog.model");
-const ServiceCenter = require("../models/serviceCenter.model");
 const Request = require("../models/request.model");
-const Planning = require("../models/planning.model");
 
 /// REASONS TO SWITCH, if REFUSED => Global
 
@@ -126,30 +124,57 @@ router.get("/:requestID", authenticateToken, async (req, res) => {
     try {
         const request = await Request.findById(requestID);
         //verify if request exists
-        if(!request) return res.status(404).json({error:true, message:"Request not found"});
+        if(!request) return res.status(404).json({error: true, message:"Request not found"});
         return res.json({error:false, message:"Here's the request", request})
     } catch (error) {
         return res.status(400).json({error: true, message:"Error getting request", error})
     }
 });
 
-
-
 // Accepter / refuser une requête
-router.put("/:id", authenticateToken, async (req, res) => {
-    const {requestID} = req.params.id
-    const {accepted} = req.body; // status = "accepted" or "refused" send notification to user, "ignored" (for global requests)
+router.put("/:requestID", authenticateToken, async (req, res) => {
+    const {requestID} = req.params  
+    const {accepted} = req.body; // "accepted", "ignored"
     try {
         const isRequest = await Request.findById(requestID);
         //verify if request exists
         if(!isRequest) return res.status(404).json({error: true, message:"Request not found"});
         //verify if request is pending
-        if(isRequest.pending !== false) return res.status(400).json({error: true, message:"Request already accepted or refused"});
-        isRequest.pending = accepted;
-        await isRequest.save();
+        if(isRequest.pending === false) return res.status(400).json({error: true, message:"Request already accepted or refused"});
+        
+        //modify the days in the database
+        if(accepted === "accepted"){
+            isRequest.pending = false;
+            isRequest.picked = true
+            await isRequest.save();
+            //modify the days in the target's shifts
+            const target = await User.findOne({phone: isRequest.targetPhone});
+            if(!target) return res.status(404).json({error: true, message:"Target user not found"});
+            isRequest.days.forEach(async (day) => {
+                target.shifts.push(day);
+            })
+            await target.save();
 
-        //accept, refuse : send notification to user, update calendar, update logs
-
+            //modify the days in the absentee's shifts
+            const absentee = await User.findOne({phone: isRequest.userPhone});
+            isRequest.days.forEach(async (day) => {
+                if(absentee.shifts.includes(day)) absentee.shifts.splice(absentee.shifts.indexOf(day), 1);
+            })
+            await absentee.save();
+            
+            //replace the absentee with the target in the week collection ----------- FIX ME  -------------------
+            for (let day of isRequest.days){
+                const thisDay = new Date(day);
+                const dayName = thisDay.toLocaleDateString("en-US", {weekday: "long"}); //get the name of the day
+                // look for the exact week in the collection using the date
+                const week = await Week.findOne({[dayName.toLowerCase()]: {$elemMatch: {date: thisDay}}});
+                if (week) {
+                    //replace the absentee with the target
+                    week[dayName.toLowerCase()].user = target._id;
+                    await week.save();
+                }
+            }
+        }
         return res.json({error:false, message:"Request updated successfully", isRequest})
     } catch (error) {
         return res.status(400).json({error: true, message:"Error updating request status", error})
