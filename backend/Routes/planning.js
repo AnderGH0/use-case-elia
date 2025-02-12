@@ -18,11 +18,16 @@ function addDays(date, days) {
 
 //create a planning, with X number users and Y number of weeks. Make it so you cant create a planning overlapping another planning
 router.post('/', authenticateToken, async (req, res) => {
-    // verify the startDate so it doenst overlap with another planning in the same service center
+    
     const {startDate, numUsers, weeks, serviceCenter} = req.body; // Start weeks must be a multiple of users
     if(!startDate || !numUsers || !weeks) return res.status(400).json({message: "Planning information is missing"});
     if(weeks % numUsers !== 0) return res.status(400).json({message: "Weeks must be a multiple of users"});
+    
+    
+
     try {
+        const sc = await ServiceCenter.findOne({name: serviceCenter});
+        if(!sc) return res.status(404).json({error: true, message: "Service center not found"});
         let changing = new Date(startDate);
         //create planning
         const planning = new Planning({
@@ -30,6 +35,12 @@ router.post('/', authenticateToken, async (req, res) => {
             startDate,
             endDate: addDays(changing, weeks*7),
         });
+
+        // verify if the new planning overlaps with another planning
+        const existingPlanning = await Planning.find({serviceCenter})
+        const isOverlapping = existingPlanning && ((planning.startDate >= existingPlanning.startDate && planning.startDate <= existingPlanning.endDate) || (planning.endDate >= existingPlanning.startDate && planning.endDate <= existingPlanning.endDate));
+        if(isOverlapping) return res.status(400).json({error: true, message: "Planning overlaps with another planning"});
+
         //array with picked users by worked days depending on service center. Excludes Admins
         const pickedUsers = await User.find({$and:[{serviceCenter}, {isAdmin : false}]}).sort({workedDays:"asc"}).limit(numUsers); 
 
@@ -67,14 +78,15 @@ router.post('/', authenticateToken, async (req, res) => {
             cycles++;
         }
         //save planning in the service center
-        const sc = await ServiceCenter.findOne({name: serviceCenter});
         sc.planning = planning;
         await sc.save();
+
         return res.json({error: false, message: "Planning created successfully", planning});
     } catch (error) {
         return res.status(500).json({error: true, message: error.message});
     }
 });
+
 
 // get weeks by user
 router.get("/user/:userID", authenticateToken, async (req, res) => {
