@@ -1,3 +1,5 @@
+const mongoose = require('mongoose')
+
 async function switchShift({ planningId, weekId, day, userFrom, userTo }) {
     // Démarrer une transaction, par exemple
     const session = await mongoose.startSession();
