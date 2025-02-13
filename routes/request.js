@@ -15,8 +15,8 @@ const Request = require("../models/request.model");
 
 // Create a Request
 router.post("/", authenticateToken, async (req, res) => {
-    const {serviceCenter, userPhone, targetPhone, days, isUrgent} = req.body;
-    if(!serviceCenter || !userPhone || !days){
+    const {serviceCenter, userPhone, targetPhone, days, isUrgent, reason} = req.body;
+    if(!serviceCenter || !userPhone || !days || !reason){
         return res.status(400).json({message: "Request information is missing"});
     }
     try {
@@ -31,7 +31,8 @@ router.post("/", authenticateToken, async (req, res) => {
                 days,
                 isUrgent,
                 targetPhone : targetPhone ? targetPhone : null,
-                isGlobal : targetPhone ? false : true
+                isGlobal : targetPhone ? false : true,
+                reason
             })
         await request.save();    
         //saves the request for the user
@@ -44,7 +45,8 @@ router.post("/", authenticateToken, async (req, res) => {
             days,
             isUrgent,
             pending: true,
-            declined: false
+            declined: false,
+            reason
         });
         await log.save();
         if(targetPhone){ // if the request isn't global
