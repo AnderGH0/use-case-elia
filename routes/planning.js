@@ -155,7 +155,7 @@ router.put("/switch-shifts/:requestID", authenticateToken, async(req, res) => {
                 target.shifts.push(day);
             }
             await target.save();
-          
+
             //replace the absentee with the target in the week collection 
             for (let day of isRequest.days){
                 const thisDay = new Date(day);
