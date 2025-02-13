@@ -7,6 +7,7 @@ const requestLogSchema = new Schema({
     replacement: { type: mongoose.SchemaTypes.ObjectId, ref: "User"},
     days: { type: [Date], required: true },
     isUrgent: {type: Boolean, default:false, required: true},
+    reason : {type: String, required: true},
     pending: {type: Boolean, default:true, required: true},
     declined: {type: Boolean, default:false, required: true},
 });
