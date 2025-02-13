@@ -69,7 +69,7 @@ router.post("/", authenticateToken, async (req, res) => {
             return res.json({error:false, message:"Request send to every user in your Service Center", request})
         }
     } catch (error) {
-        return res.status(400).json({error: true, message: "Error creating request", error});
+        return res.status(400).json({error: true, message: error.message});
     } 
 });
 
@@ -87,7 +87,7 @@ router.delete("/:id", authenticateToken, async (req, res) => {
         await Request.deleteOne({_id: requestID});
         return res.json({error:false, message:"Request deleted successfully"})
     } catch (error) {
-        return res.status(400).json({error: true, message:"Error deleting request", error})
+        return res.status(400).json({error: true, message:error.message})
     }
 });
 
@@ -99,7 +99,7 @@ router.get("/all",
         const requests = await RequestLog.find();
         return res.json({error:false, message: "Here all are the requests in the logs", requests})
     } catch (error) {
-        return res.status(400).json({error: true, message:"Error getting requests", error})
+        return res.status(400).json({error: true, message: error.message})
     }
 });
 
@@ -114,7 +114,7 @@ router.get("/by-user/:userID", authenticateToken, async (req, res) => {
         const requests = await Request.find({userPhone: isUser.phone})
         return res.json({error:false, message:"Here are the requests", requests})
     } catch (error) {
-        return res.status(400).json({error: true, message:"Error getting requests", error})
+        return res.status(400).json({error: true, message:error.message})
     }
 });
 
@@ -127,7 +127,7 @@ router.get("/:requestID", authenticateToken, async (req, res) => {
         if(!request) return res.status(404).json({error: true, message:"Request not found"});
         return res.json({error:false, message:"Here's the request", request})
     } catch (error) {
-        return res.status(400).json({error: true, message:"Error getting request", error})
+        return res.status(400).json({error: true, message: error.message})
     }
 });
 

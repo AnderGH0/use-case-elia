@@ -155,7 +155,7 @@ router.put("/switch-shifts/:requestID", authenticateToken, async(req, res) => {
                 target.shifts.push(day);
             }
             await target.save();
-            
+          
             //replace the absentee with the target in the week collection 
             for (let day of isRequest.days){
                 const thisDay = new Date(day);
@@ -180,7 +180,7 @@ router.put("/switch-shifts/:requestID", authenticateToken, async(req, res) => {
             return res.json({error:false, message:"Request declined and send to every user in your Service Center", isRequest})
         }
     } catch (error) {
-        return res.status(400).json({error: true, message:"Error updating request status", error})
+        return res.status(400).json({error: true , message: error.message});
     }
 });
 
