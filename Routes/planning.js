@@ -109,7 +109,7 @@ router.post('/create', authenticateToken, async (req, res) => {
           addDays(changing, 6)
         );
         // Augmentation du compteur workedDays (facultatif selon votre logique)
-        user.workedDays += 7;
+        // user.workedDays += 7;
         await user.save({ session });
 
         // Passage à la semaine suivante

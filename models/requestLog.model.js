@@ -1,14 +1,15 @@
-const mongoose = require("mongoose");
+// models/RequestLog.js
+const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const requestLogSchema = new Schema({
-    id: { type: String, required: true },
-    absentee: { type: mongoose.SchemaTypes.ObjectId, ref: "User", required: true },
-    replacement: { type: mongoose.SchemaTypes.ObjectId, ref: "User", required: true },
-    days: { type: [Date], required: true },
-    isUrgent: {type: Boolean, default:false, required: true},
-    pending: {type: Boolean, default:true, required: true},
-    declined: {type: Boolean, default:false, required: true},
+  id: { type: mongoose.Schema.Types.ObjectId, ref: "Request", required: true },
+  absentee: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  replacement: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // ObjectId ou null
+  days: { type: [Date], required: true },
+  isUrgent: { type: Boolean, default: false },
+  pending: { type: Boolean, default: true },
+  declined: { type: Boolean, default: false }
 });
 
 module.exports = mongoose.model("RequestLog", requestLogSchema);

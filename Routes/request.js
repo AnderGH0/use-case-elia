@@ -18,75 +18,89 @@ const planningService = require("../services/planningService");
 
 // Create a Request
 router.post("/", authenticateToken, async (req, res) => {
-  const { serviceCenter, userPhone, targetPhone, days, isUrgent } = req.body;
-  if (!serviceCenter || !userPhone || !days) {
-    return res.status(400).json({ message: "Request information is missing" });
-  }
-  try {
-    //verify if user exists
-    const isUser = await User.findOne({ phone: userPhone });
-    if (!isUser)
-      return res.status(4).json({ error: true, message: "User not found" });
+  const { serviceCenter, userPhone, targetPhone, days, planningId, weekId, isUrgent } = req.body;
 
-    //create the request
-    const request = new Request({
+  // Vérifier si toutes les données obligatoires sont présentes
+  if (!serviceCenter || !userPhone || !days || !planningId || !weekId) {
+    return res.status(400).json({ error: true, message: "Request information is missing" });
+  }
+
+  try {
+    // Vérifier si l'utilisateur qui fait la demande existe
+    const user = await User.findOne({ phone: userPhone });
+    if (!user) {
+      return res.status(404).json({ error: true, message: "User not found" });
+    }
+
+    // Créer la demande (Request) en incluant userPhone
+    const newRequest = new Request({
       serviceCenter,
-      userPhone,
+      userPhone,           // Ajouté ici pour satisfaire la validation
+      userFrom: user._id,  // On associe l'ID de l'utilisateur trouvé
+      targetPhone,
       days,
-      isUrgent,
-      targetPhone: targetPhone ? targetPhone : null,
-      isGlobal: targetPhone ? false : true,
+      planningId,
+      weekId,
+      isUrgent: isUrgent || false,
     });
-    await request.save();
-    //saves the request for the user
-    isUser.requests.push(request);
-    await isUser.save();
-    // saves the request in the logs
+    await newRequest.save();
+
+    // Ajouter la demande à la liste des demandes de l'utilisateur initiateur
+    user.requests.push(newRequest._id);
+    await user.save();
+
+    let targetUser = null;
+    if (targetPhone) {
+      // Recherche de l'utilisateur cible par son numéro de téléphone
+      targetUser = await User.findOne({ phone: targetPhone });
+      if (!targetUser) {
+        return res.status(404).json({ error: true, message: "Target not found" });
+      }
+      // Ajouter la demande à la liste des demandes de l'utilisateur cible
+      targetUser.requests.push(newRequest._id);
+      await targetUser.save();
+    } else {
+      // Si la demande est globale, l'envoyer à tous les utilisateurs du service center
+      const scUsers = await User.find({ serviceCenter });
+      await Promise.all(scUsers.map(async (usr) => {
+        usr.requests.push(newRequest._id);
+        await usr.save();
+      }));
+    }
+
+    // Créer un log de la demande (RequestLog)
     const log = new RequestLog({
-      id: request._id,
-      absentee: isUser._id,
-      replacement: targetPhone ? targetPhone : null,
+      id: newRequest._id,
+      absentee: user._id,
+      replacement: targetUser ? targetUser._id : null, // replacement sera un ObjectId ou null
       days,
-      isUrgent,
+      isUrgent: newRequest.isUrgent,
       pending: true,
       declined: false,
     });
-    if (targetPhone) {
-      // if the request isn't global
-      // search target user
-      const isTarget = await User.findOne({ phone: targetPhone });
-      if (!isTarget)
-        return res
-          .status(404)
-          .json({ error: true, message: "Target not found" });
-      //saves the request for the target user
-      isTarget.requests.push(request);
-      await isTarget.save();
-      isUser.requests.push(request);
-      await isUser.save();
+    await log.save();
+
+    // Réponse en fonction du type de demande
+    if (targetUser) {
       return res.json({
         error: false,
-        message: `Request created successfully and send to ${isTarget.firstName} ${isTarget.lastName}`,
-        request,
+        message: `Request created successfully and sent to ${targetUser.firstName} ${targetUser.lastName}`,
+        request: newRequest,
       });
     } else {
-      //global: send request to every user in the service center
-
-      const scUsers = await User.find({ serviceCenter });
-      scUsers.forEach(async (user) => {
-        user.requests.push(request);
-        await user.save();
-      });
       return res.json({
         error: false,
-        message: "Request send to every user in your Service Center",
-        request,
+        message: "Request sent to every user in your Service Center",
+        request: newRequest,
       });
     }
   } catch (error) {
-    return res
-      .status(400)
-      .json({ error: true, message: "Error creating request", error });
+    console.error("Error creating request:", error);
+    return res.status(500).json({
+      error: true,
+      message: "Error creating request",
+      details: error.message,
+    });
   }
 });
 // Get all requests admin
@@ -183,7 +197,6 @@ router.get("/:requestID", authenticateToken, async (req, res) => {
 router.patch("/:requestId/accept", authenticateToken, async (req, res) => {
   try {
     const { requestId } = req.params;
-
     // Vérifier que l'ID fourni est un ObjectId valide
     if (!mongoose.Types.ObjectId.isValid(requestId)) {
       return res.status(400).json({ error: "L'ID fourni n'est pas valide" });
@@ -202,15 +215,16 @@ router.patch("/:requestId/accept", authenticateToken, async (req, res) => {
         .json({ error: "Cette request a déjà été répondue." });
     }
 
+
     // Appel à la fonction de switch du planning.
     // On suppose que requestDoc contient les propriétés nécessaires :
     // planningId, weekId, day et userFrom
     const switchResult = await planningService.switchShift({
       planningId: requestDoc.planningId,
       weekId: requestDoc.weekId,
-      day: requestDoc.day,
+      day: requestDoc.days,
       userFrom: requestDoc.userFrom, // L'utilisateur qui cède son shift
-      userTo: req.user.id             // L'utilisateur qui accepte la demande
+      userTo: requestDoc.targetPhone  // L'utilisateur qui accepte la demande
     });
 
     // Mettre à jour la request pour marquer qu'elle a été acceptée
@@ -232,7 +246,7 @@ router.patch("/:requestId/accept", authenticateToken, async (req, res) => {
 // ajouter le fait de changer entre les deux id dans le Planning
 
 // Endpoint PATCH pour refuser une request
-router.patch("/:requestId/reject", authenticateToken, async (req, res) => {
+router.patch("/:requestId/accept", authenticateToken, async (req, res) => {
   try {
     const { requestId } = req.params;
 
@@ -241,27 +255,50 @@ router.patch("/:requestId/reject", authenticateToken, async (req, res) => {
       return res.status(400).json({ error: "L'ID fourni n'est pas valide" });
     }
 
-    // Recherche de la request dans la base de données
+    // Recherche de la demande dans la base de données
     const requestDoc = await Request.findById(requestId);
     if (!requestDoc) {
       return res.status(404).json({ error: "Request non trouvée" });
     }
 
-    // Vérifier que la request est toujours en attente
+    // Vérifier que la demande est toujours en attente
     if (!requestDoc.pending) {
-      return res
-        .status(400)
-        .json({ error: "Cette request a déjà été répondue." });
+      return res.status(400).json({ error: "Cette request a déjà été répondue." });
     }
 
-    // Mettre à jour la request pour le refus
+    // Rechercher l'utilisateur cible à partir de targetPhone
+    const targetUser = await User.findOne({ phone: requestDoc.targetPhone });
+    if (!targetUser) {
+      return res.status(404).json({ error: "Target user not found" });
+    }
+
+    // Si "days" est un tableau, sélectionner le jour concerné.
+    // Ici, on choisit le premier jour du tableau.
+    const dayToSwitch = Array.isArray(requestDoc.days) ? requestDoc.days[0] : requestDoc.days;
+
+    // Appel à la fonction de switch du planning.
+    // On suppose que la fonction switchShift attend :
+    // planningId, weekId, day (un jour précis), userFrom (celui qui cède son shift) et userTo (celui qui accepte)
+    const switchResult = await planningService.switchShift({
+      planningId: requestDoc.planningId,
+      weekId: requestDoc.weekId,
+      day: dayToSwitch,
+      userFrom: requestDoc.userFrom,
+      userTo: targetUser._id
+    });
+
+    // Mettre à jour la demande pour marquer qu'elle a été acceptée
     requestDoc.pending = false;
-    // Ici, picked reste false
+    requestDoc.picked = true;
     await requestDoc.save();
 
-    res.json({ message: "Request refusée avec succès.", request: requestDoc });
+    res.json({
+      message: "Request acceptée et shift switché avec succès.",
+      request: requestDoc,
+      switchResult // Informations renvoyées par la fonction switchShift
+    });
   } catch (error) {
-    console.error("Erreur lors du refus de la request :", error);
+    console.error("Erreur lors de l'acceptation de la request :", error);
     res.status(500).json({ error: error.message });
   }
 });
