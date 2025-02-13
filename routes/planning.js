@@ -127,7 +127,12 @@ router.put("/switch-shifts/:requestID", authenticateToken, async(req, res) => {
         if(!isRequest) return res.status(404).json({error: true, message:"Request not found"});
         //verify if request is pending
         if(isRequest.pending === false) return res.status(400).json({error: true, message:"Request already accepted or refused"});
-        
+        //verify absentee
+        const absentee = await User.findOne({phone: isRequest.userPhone});
+        if(!absentee) return res.status(404).json({error: true, message:"Absentee user not found"});
+        //verify target
+        const target = await User.findOne({phone: isRequest.targetPhone});
+        if(!target) return res.status(404).json({error: true, message:"Target user not found"});
         //modify the days in the database
         if(accepted === "accepted"){
             isRequest.pending = false;
@@ -135,8 +140,6 @@ router.put("/switch-shifts/:requestID", authenticateToken, async(req, res) => {
             await isRequest.save();
 
             //modify the days in the absentee's shifts
-            const absentee = await User.findOne({phone: isRequest.userPhone});
-            if(!absentee) return res.status(404).json({error: true, message:"Absentee user not found"});
             isRequest.days.forEach(async (day) => {
                 const thisDay = new Date(day); 
                 const index = absentee.shifts.indexOf(thisDay.toString());
@@ -148,14 +151,12 @@ router.put("/switch-shifts/:requestID", authenticateToken, async(req, res) => {
             await absentee.save();
 
             //modify the days in the target's shifts
-            const target = await User.findOne({phone: isRequest.targetPhone});
-            if(!target) return res.status(404).json({error: true, message:"Target user not found"});
             for (const day of isRequest.days) {
                 target.shifts.push(day);
             }
             await target.save();
+          
             //replace the absentee with the target in the week collection 
-
             for (let day of isRequest.days){
                 const thisDay = new Date(day);
                 const dayName = thisDay.toLocaleDateString("en-US", {weekday: "long"}).toLowerCase(); //get the name of the day
@@ -168,7 +169,16 @@ router.put("/switch-shifts/:requestID", authenticateToken, async(req, res) => {
             }
             return res.json({error:false, message:"Request accepted successfully", isRequest})
         }
-        return res.json({error:false, message:"Request was not accepted, nothing changed", isRequest})
+        else { //request declined => becomes global: send request to every user in the service center
+            const scUsers = await User.find({serviceCenter: absentee.serviceCenter});
+            scUsers.forEach(async (user) =>  {
+                if(user.phone !== target.phone){
+                    user.requests.push(isRequest);
+                    await user.save();
+                }           
+            })
+            return res.json({error:false, message:"Request declined and send to every user in your Service Center", isRequest})
+        }
     } catch (error) {
         return res.status(400).json({error: true , message: error.message});
     }
