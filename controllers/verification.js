@@ -1,5 +1,5 @@
 
-const registerFieldsValidator = async (req, res) => {
+async function registerFieldsValidator(req, res, next){
     const {firstName, lastName, phone, serviceCenter, password} = req.body;
         //Fields validation
         if(!firstName || !lastName || !phone || !serviceCenter || !password){
@@ -9,7 +9,7 @@ const registerFieldsValidator = async (req, res) => {
         next();
 };
 
-const loginFieldsValidator = async (req, res) => {
+const loginFieldsValidator = async (req, res, next) => {
     const {password, phone} = req.body;
     //handle missing info
     if(!phone || !password){
@@ -19,7 +19,7 @@ const loginFieldsValidator = async (req, res) => {
     next();
 };
 
-const planningCreationValidator = async (req, res) => {
+const planningCreationValidator = async (req, res, next) => {
     const {startDate, numUsers, weeks} = req.body; // Start weeks must be a multiple of users
     if(!startDate || !numUsers || !weeks){
         const missingField = !startDate ? "startDate" : !numUsers ? "numUsers" : "weeks";
@@ -29,7 +29,7 @@ const planningCreationValidator = async (req, res) => {
     next();
 }
 
-const requestCreationValidator = async (req, res) => {
+const requestCreationValidator = async (req, res, next) => {
     const {serviceCenter, userPhone,  days, reason} = req.body;
     if(!serviceCenter || !userPhone || !days || !reason){
         const missingField = !serviceCenter ? "serviceCenter" : !userPhone ? "userPhone" : !days ? "days" : "reason";

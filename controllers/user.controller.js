@@ -48,7 +48,35 @@ const userByID = async (req, res) => {
       res.status(500).json({ error: error.message });
     }
   }
+
+const selfInfo =  async (req, res) => {
+
+    const {user} = req.user
+    try {
+      const isUser =  await User.findOne({phone : user.phone});
+
+    if(!isUser) {
+        return res.status(404).json({error: true, message: "User not found"});
+    }
+    return res.json({
+        error: false,
+        user: {
+          firstName: isUser.firstName, 
+          lastName: isUser.lastName, 
+          phone: isUser.phone, 
+          serviceCenter: isUser.serviceCenter,
+          abreveation: isUser.abreveation,
+          isAdmin: isUser.isAdmin, 
+          "_id": isUser._id},
+        message: "User retrieved successfully",
+    });
+    } catch (error) {
+      return res.status(500).json({error: true, message: error.message});
+    }
+};
+
 module.exports = {
     allUsers,
-    userByID
+    userByID,
+    selfInfo
 };

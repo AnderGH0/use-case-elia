@@ -5,15 +5,12 @@ const router = express.Router();
 //controllers
 const {registerFieldsValidator, loginFieldsValidator} = require("../controllers/verification");
 const {registerController, loginController} = require("../controllers/auth.controller");
-const { findRegisterDocuments, findLoginDocuments } = require("../controllers/findInDatabase");
 
 // register
-router.post("/register", registerFieldsValidator, registerController, findRegisterDocuments);
+router.post("/register", registerFieldsValidator, registerController);
 
 // login
-router.post("/login", loginFieldsValidator, loginController, findLoginDocuments);
+router.post("/login", loginFieldsValidator, loginController);
+
 
 module.exports = router;
-
-//POST      /register                                |   Créer un compte ---
-//POST      /login                                   |   Se connecter ---

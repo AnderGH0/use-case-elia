@@ -2,15 +2,18 @@
 const User = require("../models/user.model");
 const RequestLog = require("../models/requestLog.model");
 const Request = require("../models/request.model");
-const { request } = require("express");
 
 const createRequest = async (req, res) => {
     const {serviceCenter, userPhone, targetPhone, days, isUrgent, reason} = req.body;
 
     try {
-        next();
-
-        const isUser = await User.findOne({phone:userPhone})
+        const isUser = await User.findOne({phone:userPhone});
+            if(!isUser) return res.status(404).json({error:true, message:"User not found"});
+        
+            if(targetPhone){
+                const isTarget = await User.findOne({phone: targetPhone});
+                if(!isTarget) return res.status(404).json({error: true, message:"Target not found"});
+            }
         
         //create the request
         const request = new Request({

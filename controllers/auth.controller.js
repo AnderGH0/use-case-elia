@@ -4,12 +4,16 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/user.model");
 const ServiceCenter = require("../models/serviceCenter.model");
 
-const registerController = async (req, res) => {
+const registerController = async (req, res, next) => {
     const {firstName, lastName, phone, serviceCenter, password, isAdmin} = req.body;
+    
     try {
         // Check if already registered
-        next();
+        const isUser = await User.findOne({phone});
+        if(isUser)  return res.status(400).json({message: "User already exists"});
+    
         const sc = await ServiceCenter.findOne({name: serviceCenter});
+        if(!sc) return res.status(404).json({message: "Service Center does not exist"});
 
         // Create User
         const user = new User({
@@ -33,20 +37,30 @@ const registerController = async (req, res) => {
         sc.users.push(user);
         await sc.save();
 
-        return res.status(201).json({error:false, message: "User created successfully", user: {firstName, lastName, phone, serviceCenter}});
+        return res.status(201).json({error:false, message: "User created successfully", user: {firstName, lastName, phone, serviceCenter}, accessToken});
     } catch (error) {
         return res.status(400).json({error: true, message: error.message});
     }
 
 };
 
-const loginController = async (req, res) => {
-    const {phone} = req.body;
+const loginController = async (req, res, next) => {
+    const {phone, password} = req.body;
 
     try {
         //user verification
-        next();
-        const userInfo = await User.findOne({phone});
+            const userInfo = await User.findOne({phone});
+            if(!userInfo){ //user not found
+                return res.status(404).json({message: "User not found"});
+            }
+            if(userInfo.password !== password){ //wrong password
+                return res.status(400).json({message: "Wrong password"});
+            } 
+            if(userInfo.phone.toString() !== phone){ //wrong phone
+                return res.status(400).json({message: "Wrong phone"});
+            }
+
+        //const userInfo = await User.findOne({phone});
 
         const user = {user: userInfo}; 
 

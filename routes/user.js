@@ -4,10 +4,13 @@ const router = express.Router();
 // jwt (si besoin d'authentification)
 const { authenticateToken } = require("../utilities");
 //controllers
-const { allUsers, userByID } = require("../controllers/user.controller");
+const { allUsers, userByID, selfInfo } = require("../controllers/user.controller");
 
 // Route pour récupérer toutes les informations des utilisateurs
 router.get("/all/", authenticateToken, allUsers);
+
+// get self info
+router.get("/get-user", authenticateToken, selfInfo);
 
 // Route pour récupérer les informations d'un utilisateur par son ID
 router.get("/:id", authenticateToken, userByID);

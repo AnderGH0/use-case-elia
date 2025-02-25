@@ -11,54 +11,26 @@ const addDays = (date, days) => {
     return newDate; //newDate.toLocaleString()
 }
 
-async function createPlanning(weeks, numUsers, planning, pickedUsers){
-    let cycles = 0;        
-
-    //creates looping calendar 
-    while (cycles < weeks/numUsers){
-        for (const user of pickedUsers) {
-            const newWeek = new Week({
-                thursday : {date: changing, user: user._id},
-                friday : {date: addDays(changing, 1), user: user._id},
-                saturday : {date: addDays(changing, 2), user: user._id},
-                sunday : {date: addDays(changing, 3), user: user._id},
-                monday : { date:  addDays(changing, 4), user: user._id},
-                tuesday : {date: addDays(changing, 5), user: user._id},
-                wednesday : {date: addDays(changing, 6), user: user._id},
-            });
-            const newWeekObj = newWeek.toObject();
-
-            planning.weeks.push(newWeek);
-            await planning.save();
-            
-            //push the shift days in the user 
-            const currentUser = await User.findById(user._id);
-
-            for (const day of Object.keys(newWeekObj)) {
-                if (newWeekObj[day].date) {
-                    currentUser.shifts.push(newWeekObj[day].date);
-                }
-            }
-            await currentUser.save();
-
-            newWeek.serviceCenter = serviceCenter;
-            await newWeek.save();
-
-            changing = addDays(changing, 7);
-        }
-        cycles++;
-    }
-}
-
-const planningCreation = async (req, res) => {
+const planningCreation = async (req, res, next) => {
     
     const {startDate, numUsers, weeks, serviceCenter} = req.body; // Start weeks must be a multiple of users
 
     try {
-        next();
-        const sc = await ServiceCenter.findOne({name: serviceCenter});
-        
         let changing = new Date(startDate); 
+            const sc = await ServiceCenter.findOne({name: serviceCenter});
+            if(!sc) return res.status(404).json({error: true, message: "Service center not found"});
+        
+            // verify if the new planning overlaps with another planning
+            const existingPlanning = await Planning.findOne({serviceCenter});
+            const isOverlapping = existingPlanning && (
+                (startDate >= existingPlanning.startDate && startDate <= existingPlanning.endDate) 
+                || (addDays(changing, weeks*7) >= existingPlanning.startDate && addDays(changing, weeks*7) <= existingPlanning.endDate));
+            if(isOverlapping) return res.status(400).json({error: true, message: "Planning overlaps with another planning"});
+        
+            //FIX ME verify users are no picked if the latest date in the shift is greater than the start date
+            const pickedUsers = await User.find({$and:[{serviceCenter}, {isAdmin : false}, {shifts: []}]}).sort({workedDays:"asc"}).limit(numUsers); 
+            if(pickedUsers.length < numUsers) return res.status(400).json({error: true, message: "Not enough users in the service center"});
+        
         //create planning
         const planning = new Planning({
             serviceCenter,
@@ -66,11 +38,42 @@ const planningCreation = async (req, res) => {
             endDate: addDays(changing, weeks*7),
         });
 
-        //array with picked users by worked days depending on service center. Excludes Admins
-        const pickedUsers = await User.find({$and:[{serviceCenter}, {isAdmin : false}]}).sort({workedDays:"asc"}).limit(numUsers); 
-
         // generate planning
-        createPlanning(weeks, numUsers, planning, pickedUsers)
+        let cycles = 0;        
+
+        while (cycles < weeks/numUsers){
+            for (const user of pickedUsers) {
+                const newWeek = new Week({
+                    thursday : {date: changing, user: user._id},
+                    friday : {date: addDays(changing, 1), user: user._id},
+                    saturday : {date: addDays(changing, 2), user: user._id},
+                    sunday : {date: addDays(changing, 3), user: user._id},
+                    monday : { date:  addDays(changing, 4), user: user._id},
+                    tuesday : {date: addDays(changing, 5), user: user._id},
+                    wednesday : {date: addDays(changing, 6), user: user._id},
+                });
+                const newWeekObj = newWeek.toObject();
+    
+                planning.weeks.push(newWeek);
+                await planning.save();
+                
+                //push the shift days in the user 
+                const currentUser = await User.findById(user._id);
+    
+                for (const day of Object.keys(newWeekObj)) {
+                    if (newWeekObj[day].date) {
+                        currentUser.shifts.push(newWeekObj[day].date);
+                    }
+                }
+                await currentUser.save();
+    
+                newWeek.serviceCenter = serviceCenter;
+                await newWeek.save();
+    
+                changing = addDays(changing, 7);
+            }
+            cycles++;
+        }
 
         //save planning in the service center
         sc.planning = planning;
@@ -112,26 +115,31 @@ const planningByServiceCenter = async (req, res) => {
     }
 }
 
-const deletePlanning = async(req, res) =>{
+const deletePlanning = async(req, res, next) =>{
     const {id} = req.params;
-
+    
     //delete all weeks
     try {
-        next();
-        //delete weeks from this planning from the weeks collection
         const planning = await Planning.findById(id).populate("weeks");
+            if(!planning) return res.status(404).json({error: true, message:"Planning not found"});
+        
+            const users = await User.find({serviceCenter: planning.serviceCenter});
+            if(!users) return res.status(404).json({error: true, message:"Users not found"});
+        
+            const sc = await ServiceCenter.findOne({name: planning.serviceCenter});
+            if(!sc) return res.status(404).json({error: true, message:"Service center not found"});
+
+        //delete weeks from this planning from the weeks collection
         for (const week of planning.weeks) {
             await Week.findByIdAndDelete(week._id);
         }
         //FIX ME verify only using from this planning are getting their shifts deleted
-        const users = await User.find({serviceCenter: planning.serviceCenter});
         for (const user of users) {
             user.shifts = [];
             await user.save();
         }
 
         //delete planning from the service center
-        const sc = await ServiceCenter.findOne({name: planning.serviceCenter});
         sc.planning = null;
         await sc.save();
 
@@ -144,16 +152,23 @@ const deletePlanning = async(req, res) =>{
     }
 }
 
-const switchShifts = async(req, res) => {
+const switchShifts = async(req, res, next) => {
     const {requestID} = req.params;  
     const {accepted} = req.body; // "accepted", "ignored"
     if(!accepted) return res.status(400).json({error: true, message:"Accepted field is missing"});
     try {
-        next();
-
         const isRequest = await Request.findById(requestID);
-        const absentee = await User.findOne({phone: isRequest.userPhone});
-        const target = await User.findOne({phone: isRequest.targetPhone});
+            //verify if request exists
+            if(!isRequest) return res.status(404).json({error: true, message:"Request not found"});
+            //verify if request is pending
+            if(isRequest.pending === false) return res.status(400).json({error: true, message:"Request already accepted or refused"});
+        
+            const absentee = await User.findOne({phone: isRequest.userPhone});
+            if(!absentee) return res.status(404).json({error: true, message:"Absentee user not found"});
+        
+            const target = await User.findOne({phone: isRequest.targetPhone});
+            if(!target) return res.status(404).json({error: true, message:"Target user not found"});
+
 
         //modify the days in the database
         if(accepted === "accepted"){
@@ -215,3 +230,6 @@ module.exports = {
     deletePlanning,
     switchShifts
 };
+
+///Faire des heures
+/// au moment de creation du planning quelqu'un demisiones? Dans la base de donné

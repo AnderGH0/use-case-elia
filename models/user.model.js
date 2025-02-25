@@ -13,7 +13,6 @@ const userSchema = new Schema({
     isAdmin : {type: Boolean, default:false},
     shifts : {type: [Date], default: []},
     requests : {type:  [{type: mongoose.SchemaTypes.ObjectId, ref: "Request"}],  default: []},
-    token : String
 })
 
 module.exports = mongoose.model("User", userSchema);
